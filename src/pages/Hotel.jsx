@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
-import { HotelDetailsAPI } from "../configs/api";
 import CommonHeader from "../components/CommonHeader";
 import DestinationCard from "../components/DestinationCard";
-import { BookOpen, CircleX, Search, SlidersHorizontal } from "lucide-react";
+import FeaturedCard from "../components/FeaturedCard";
+import { BookOpen, Search, Calendar, Users } from "lucide-react";
 import MakkahImage from "../assets/makkah.jpg";
 import MadinahImage from "../assets/madinah.jpg";
-import { SearchAPI } from "../configs/api";
 const Hotel = () => {
   const options = [
     {
@@ -28,101 +26,95 @@ const Hotel = () => {
   const [data, setData] = useState([]);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [checkIn, setCheckIn] = useState("");
+  const [checkOut, setCheckOut] = useState("");
+  const [guests, setGuests] = useState(2);
+  const [rooms, setRooms] = useState(1);
 
   const limit = 9;
 
-  const navigate = useNavigate();
+  // const fetchSearch = async () => {
+  //   try {
+  //     setLoading(true);
 
-  const fetchSearch = async () => {
-    try {
-      setLoading(true);
+  //     const res = await fetch(
+  //       `${SearchAPI.SearchApi}?iataCode=${selected}&limit=${limit}&page=${page}`,
+  //     );
 
-      const res = await fetch(
-        `${SearchAPI.SearchApi}?iataCode=${selected}&limit=${limit}&page=${page}`,
-      );
+  //     const result = await res.json();
 
-      const result = await res.json();
-
-      setData(result?.data || []);
-    } catch (error) {
-      console.error("Search API error:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  //     setData(result?.data || []);
+  //   } catch (error) {
+  //     console.error("Search API error:", error);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   const fetchSearchAllData = async (query) => {
     try {
       setLoading(true);
       const encodedQuery = encodeURIComponent(query.trim());
 
-      const res = await fetch(
-        `${SearchAPI.SearchAllDataApi}?title=${encodedQuery}&iataCode=${selected}&limit=${limit}&page=${page}`,
-      );
+      // const res = await fetch(
+      //   `${SearchAPI.SearchAllDataApi}?title=${encodedQuery}&iataCode=${selected}&limit=${limit}&page=${page}`,
+      // );
 
+      const res = await fetch("https://jsonplaceholder.typicode.com/users");
       const result = await res.json();
 
-      setData(result?.data || []);
+      const sourceData = Array.isArray(result)
+        ? result
+        : result?.data || result || [];
+
+      const startIndex = (page - 1) * limit;
+      const paginatedData = sourceData.slice(startIndex, startIndex + limit);
+
+      setData(paginatedData);
     } catch (error) {
       console.error("SearchAllData API error:", error);
+      setData([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (searchQuery.trim()) {
-      const timer = setTimeout(() => {
-        fetchSearchAllData(searchQuery);
-      }, 300);
+    const timer = setTimeout(() => {
+      fetchSearchAllData(searchQuery);
+    }, 300);
 
-      return () => clearTimeout(timer);
-    }
-
-    fetchSearch();
+    return () => clearTimeout(timer);
   }, [searchQuery, selected, page]);
 
-  const handleToggleSearch = () => {
-    if (searchOpen) {
-      setSearchQuery("");
-    }
-    setSearchOpen((prev) => !prev);
-    setOpen(false);
+  const handleSearch = () => {
+    fetchSearchAllData(searchQuery);
   };
 
   return (
     <>
       <CommonHeader title="Hotel" />
-      <div className="max-w-7xl mx-auto font-poppins">
+      <div className="max-w-7xl mx-auto font-poppins z-10">
         {/* Top Section */}
-        <div className="bg-white p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          {/* <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={() => navigate("/")}
-            className="flex items-center gap-2 px-4 py-3  bg-teal-600 text-white rounded-lg hover:bg-teal-500 transition cursor-pointer"
-          >
-            <ArrowLeft size={18} />
-            Back
-          </button>
-        </div> */}
-
-          <div className="flex gap-2">
-            <div className="w-full md:w-96 relative">
+        <div className="bg-gradient-to-r from-teal-700 via-teal-600 to-cyan-600 rounded-2xl p-4 md:p-6 shadow-lg mt-4 relative">
+          <div className="flex flex-col xl:flex-row gap-3 w-full">
+            <div className="w-full xl:w-72 relative">
               <div
-                onClick={() => {
-                  setOpen(!open);
-                  setSearchOpen(false);
-                }}
-                className="bg-teal-600 p-3 rounded-lg cursor-pointer text-white flex items-center gap-2 font-normal"
+                onClick={() => setOpen(!open)}
+                className="bg-white/95 text-teal-700 h-[48px] px-3 rounded-xl cursor-pointer flex items-center justify-between gap-3 font-medium shadow-sm border border-white/60"
               >
-                <Search size={20} />
-                {options.find((option) => option.value === selected)?.label}
+                <div className="flex items-center gap-2">
+                  <Search size={18} />
+                  <span>
+                    {options.find((option) => option.value === selected)?.label}
+                  </span>
+                </div>
+                <span className="text-sm text-gray-500">▼</span>
               </div>
 
               {open && (
-                <div className="absolute md:w-full w-[200px] mt-2 text-teal-600 bg-white border border-teal-600 font-normal rounded-lg shadow-lg">
+                <div className="absolute left-0 right-0 mt-2 text-teal-700 bg-white border border-teal-100 font-normal rounded-xl shadow-xl z-20 overflow-hidden">
                   {options.map((item) => (
                     <div
                       key={item.value}
@@ -131,52 +123,137 @@ const Hotel = () => {
                         setPage(1);
                         setOpen(false);
                       }}
-                      className="flex items-center justify-between p-2 hover:bg-teal-600 hover:text-white hover:rounded-lg cursor-pointer border-b border-teal-600 last:border-none"
+                      className="flex items-center justify-between p-3 hover:bg-teal-50 cursor-pointer border-b border-gray-100 last:border-none"
                     >
-                      <div className="flex gap-1.5 items-center">
-                        <Search size={20} />
-                        {item.label}
+                      <div className="flex gap-2 items-center">
+                        <Search size={18} />
+                        <span>{item.label}</span>
                       </div>
 
                       {item.image && (
                         <img
                           src={item.image}
                           alt={item.label}
-                          className="w-20 h-10 object-cover rounded-lg"
+                          className="w-16 h-10 object-cover rounded-lg"
                         />
                       )}
                     </div>
                   ))}
                 </div>
               )}
+            </div>
 
-              {searchOpen && (
-                <div className="mt-3 absolute w-full top-full left-0">
+            <div className="w-full xl:flex-1 relative">
+              <Search
+                size={18}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-teal-600"
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search hotels, city or country"
+                className="w-full h-[48px] pl-10 pr-4 rounded-xl border border-white/70 bg-white shadow-sm outline-none focus:ring-2 focus:ring-white/70"
+              />
+            </div>
+
+            <div className="w-full md:w-auto flex flex-col md:flex-row gap-3">
+              <div className="flex items-center gap-2 bg-white/95 rounded-xl px-3 py-2 shadow-sm h-12">
+                <Calendar size={16} className="text-teal-600" />
+                <div className="flex flex-col">
+                  <label className="text-[11px] text-gray-500">Check-in</label>
                   <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search hotels, city or country"
-                    className="md:w-full bg-white p-3 border border-teal-600 rounded-lg outline-none focus:ring-2 focus:ring-teal-500 w-[300px]"
+                    type="date"
+                    value={checkIn}
+                    onChange={(e) => setCheckIn(e.target.value)}
+                    className="bg-transparent text-sm text-gray-700 outline-none"
                   />
                 </div>
-              )}
+              </div>
+
+              <div className="flex items-center gap-2 bg-white/95 rounded-xl px-3 py-2 shadow-sm h-12">
+                <Calendar size={16} className="text-teal-600" />
+                <div className="flex flex-col">
+                  <label className="text-[11px] text-gray-500">Check-out</label>
+                  <input
+                    type="date"
+                    value={checkOut}
+                    onChange={(e) => setCheckOut(e.target.value)}
+                    className="bg-transparent text-sm text-gray-700 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 bg-white/95 rounded-xl px-3 py-2 shadow-sm h-12">
+                <Users size={16} className="text-teal-600" />
+                <div className="flex flex-col min-w-[150px]">
+                  <label className="text-[11px] text-gray-500">
+                    Guest & Room
+                  </label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-600">Guests</span>
+                      <div className="flex items-center border rounded-md overflow-hidden h-5">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setGuests((prev) => Math.max(1, prev - 1))
+                          }
+                          className="px-2 py-1 text-lg text-teal-700 hover:bg-teal-50"
+                        >
+                          −
+                        </button>
+                        <span className="min-w-6 text-center text-sm">
+                          {guests}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setGuests((prev) => Math.min(40, prev + 1))
+                          }
+                          className="px-2 py-1 text-lg text-teal-700 hover:bg-teal-50"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-600">Rooms</span>
+                      <div className="flex items-center border rounded-md overflow-hidden h-5">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setRooms((prev) => Math.max(1, prev - 1))
+                          }
+                          className="px-2 py-1 text-lg text-teal-700 hover:bg-teal-50"
+                        >
+                          −
+                        </button>
+                        <span className="min-w-6 text-center text-sm">
+                          {rooms}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setRooms((prev) => Math.min(20, prev + 1))
+                          }
+                          className="px-2 py-1 text-lg text-teal-700 hover:bg-teal-50"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
+          </div>
+          <div className="mt-4 flex justify-center xl:absolute xl:left-1/2 xl:-translate-x-1/2 xl:top-16 xl:mt-4">
             <button
-              onClick={handleToggleSearch}
-              className="flex items-center gap-2 px-4 py-2 border border-teal-600 text-teal-600 rounded-lg hover:bg-teal-50 transition cursor-pointer font-medium"
+              onClick={handleSearch}
+              className="w-full sm:w-auto bg-white text-teal-700 font-semibold px-6 py-3 rounded-xl shadow-md hover:bg-teal-50 transition cursor-pointer"
             >
-              {searchOpen ? (
-                <div className="flex items-center gap-2">
-                  <CircleX size={18} className="text-red-400" />
-                  Search
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <SlidersHorizontal size={18} />
-                  Search
-                </div>
-              )}
+              Search
             </button>
           </div>
         </div>
@@ -196,11 +273,55 @@ const Hotel = () => {
                 No hotels found. Try a different search term.
               </div>
             ) : (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-                {data.map((item, i) => (
-                  <DestinationCard key={i} item={item} />
-                ))}
-              </div>
+              <>
+                <div className="mt-12">
+                  <div className="text-lg font-semibold text-gray-800 justify-items-center items-center">
+                    <h2 className="text-3xl font-bold bg-gradient-to-r from-green-800 to-purple-600 bg-clip-text text-transparent">
+                      Offer for you
+                    </h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+                      {data.map((item, i) => (
+                        <div key={i}>
+                          <FeaturedCard item={item} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-12">
+                  <div className="text-lg font-semibold text-gray-800 justify-items-center items-center">
+                    <h2 className="text-3xl font-bold bg-gradient-to-r from-green-800 to-purple-600 bg-clip-text text-transparent">
+                      Recommended for you
+                    </h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+                      {data.map((item, i) => (
+                        <div key={i}>
+                          <FeaturedCard item={item} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-12 justify-items-center items-center">
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-green-800 to-purple-600 bg-clip-text text-transparent">
+                    All Hotels List
+                  </h2>
+                </div>
+
+                <div className="justify-items-center items-center">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+                    {data.map((item, i) => (
+                      <div key={i}>
+                        <DestinationCard item={item} variant="list" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
           </>
         )}

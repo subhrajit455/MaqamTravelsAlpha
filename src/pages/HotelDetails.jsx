@@ -75,6 +75,12 @@ const HotelDetails = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [openhotelRoomAvailability, setOpenHotelRoomAvailability] =
     useState(false);
+  const [expandedSections, setExpandedSections] = useState({
+    about: false,
+    facilities: false,
+    policies: false,
+    information: false,
+  });
   const [rateComponentData, setRateComponentData] = useState(null);
   const [reservationData, setReservationData] = useState({
     hotelIds: [id],
@@ -123,18 +129,63 @@ const HotelDetails = () => {
     }));
   };
   const thumbnailsRef = useRef(null);
+  const fallbackImage =
+    "https://placehold.co/800x600/2dd4bf/ffffff?text=No+Image+Available";
 
   useEffect(() => {
     const fetchHotelDetails = async () => {
       try {
-        const res = await fetch(
-          `${HotelDetailsAPI.HotelDetailsApi}?hotelId=${id}`,
-        );
+        const endpoint = HotelDetailsAPI?.HotelDetailsApi
+          ? `${HotelDetailsAPI.HotelDetailsApi}?hotelId=${id}`
+          : "https://jsonplaceholder.typicode.com/users";
+
+        const res = await fetch(endpoint);
         const result = await res.json();
-        setHotel(result?.data?.data);
-        console.log(result?.data?.data);
+
+        const hotelData = Array.isArray(result)
+          ? result[0]
+          : result?.data?.data?.[0] || result?.data || result;
+
+        const normalizeImage = (image) => {
+          if (!image) return null;
+          if (typeof image === "string") return { url: image };
+          if (typeof image === "object") {
+            const url = image.url || image.image || image.src || image.photo;
+            return url ? { ...image, url } : null;
+          }
+          return null;
+        };
+
+        const imageList = [
+          ...(Array.isArray(hotelData?.hotelImages)
+            ? hotelData.hotelImages
+            : []),
+          ...(Array.isArray(hotelData?.images) ? hotelData.images : []),
+          ...(Array.isArray(hotelData?.photos) ? hotelData.photos : []),
+        ]
+          .map(normalizeImage)
+          .filter(Boolean);
+
+        const normalizedHotel = {
+          ...hotelData,
+          main_photo:
+            hotelData?.main_photo ||
+            hotelData?.mainPhoto ||
+            hotelData?.photo ||
+            hotelData?.image ||
+            imageList[0]?.url ||
+            fallbackImage,
+          hotelImages: imageList,
+        };
+
+        setHotel(normalizedHotel);
       } catch (error) {
         console.error(error);
+        setHotel({
+          name: "Hotel Details",
+          main_photo: fallbackImage,
+          hotelImages: [{ url: fallbackImage }],
+        });
       }
     };
 
@@ -151,9 +202,28 @@ const HotelDetails = () => {
     );
   }
 
+  const dummyHotelImages = [
+    {
+      url: "https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80",
+    },
+    {
+      url: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80",
+    },
+  ];
+
   const allImages = [
-    { url: hotel.main_photo, isMain: true, alt: hotel.name },
-    ...(hotel.hotelImages || []).map((img) => ({ ...img, isMain: false })),
+    {
+      url: hotel?.main_photo || fallbackImage,
+      isMain: true,
+      alt: hotel?.name || "Hotel image",
+    },
+    ...dummyHotelImages
+      .map((img) => ({
+        ...img,
+        url: img?.url || img?.image || img?.src || img?.photo || fallbackImage,
+        isMain: false,
+      }))
+      .filter((img) => img?.url),
   ];
 
   const openImageModal = (imageUrl, index) => {
@@ -210,6 +280,13 @@ const HotelDetails = () => {
     return Icon;
   };
 
+  const toggleSection = (section) => {
+    setExpandedSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
+
   const handleSubmitReservation = async () => {
     console.log("Reservation Data:", reservationData);
     setIsLoading(true);
@@ -239,7 +316,9 @@ const HotelDetails = () => {
       }
     } catch (error) {
       console.error("Error making reservation:", error.message);
-      toast.error("Error making reservation. Please try again." || error.message);
+      toast.error(
+        "Error making reservation. Please try again." || error.message,
+      );
       setIsLoading(false);
     }
   };
@@ -354,7 +433,7 @@ const HotelDetails = () => {
               </div>
 
               {/* Thumbnails */}
-              <div className="absolute bottom-17 left-0 right-0 px-4 ">
+              <div className="absolute bottom-17 left-0 right-0 px-4">
                 <div className="relative">
                   <button
                     className="cursor-pointer absolute left-0 top-1/2 transform -translate-y-1/2 z-10 bg-black bg-opacity-50 text-white rounded-full p-2 hover:bg-opacity-75 transition"
@@ -403,79 +482,34 @@ const HotelDetails = () => {
 
         {/* Hero Section with Images */}
         <div className="relative">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 p-6">
-            {/* Main Image */}
-            <div className="md:col-span-2 relative group">
-              <img
-                src={hotel.main_photo}
-                className="h-[420px] w-full object-cover rounded-2xl shadow-lg cursor-pointer"
-                onClick={() => openImageModal(hotel.main_photo, 0)}
-              />
-              <button
-                className="absolute bottom-4 right-4 bg-black bg-opacity-50 text-white px-4 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition flex items-center gap-2 cursor-pointer"
-                onClick={() => openImageModal(hotel.main_photo, 0)}
-              >
-                <Maximize2 size={16} />
-                View Full Size
-              </button>
-              {allImages.length > 0 && (
-                <div className="absolute top-4 left-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded-lg text-sm flex items-center gap-1">
-                  <Image size={14} />
-                  <span>{allImages.length} photos</span>
-                </div>
-              )}
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 p-6">
+            {/* Left Spacer (Desktop Only) */}
+            <div className="hidden md:block md:col-span-1 md:order-1"></div>
 
-            {/* Right Side Images */}
-            <div className="hidden md:block">
-              {!showAllImages ? (
-                <div className="grid grid-cols-2 gap-2 h-full">
-                  {allImages.slice(1, 5).map((img, i) => (
-                    <div
-                      key={i}
-                      className="relative group cursor-pointer h-[205px]"
-                    >
-                      <img
-                        src={img.url}
-                        className="w-full h-full object-cover rounded-xl shadow-md"
-                        onClick={() => openImageModal(img.url, i + 1)}
-                      />
-                      {i === 3 && allImages.length > 5 && (
-                        <div
-                          className="absolute inset-0 bg-black bg-opacity-60 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-opacity-70 transition"
-                          onClick={() => setShowAllImages(true)}
-                        >
-                          <span className="text-white text-2xl font-bold">
-                            +{allImages.length - 5}
-                          </span>
-                          <span className="text-white text-sm">Show all</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2 h-full overflow-y-auto max-h-[420px]">
-                  {allImages.slice(1).map((img, i) => (
-                    <div
-                      key={i}
-                      className="relative group cursor-pointer h-[205px]"
-                    >
-                      <img
-                        src={img.url}
-                        className="w-full h-full object-cover rounded-xl shadow-md"
-                        onClick={() => openImageModal(img.url, i + 1)}
-                      />
-                    </div>
-                  ))}
-                  <button
-                    className="col-span-2 mt-2 bg-teal-500 text-white py-2 rounded-lg hover:bg-teal-600 transition flex items-center justify-center gap-2"
-                    onClick={() => setShowAllImages(false)}
-                  >
-                    Show Less
-                  </button>
-                </div>
-              )}
+            {/* Main Image */}
+            <div className="md:col-span-6 md:order-2 md:translate-x-16">
+              <div className="relative group w-full">
+                <img
+                  src={hotel.main_photo}
+                  className="w-full h-[500px] object-cover rounded-2xl shadow-lg cursor-pointer"
+                  onClick={() => openImageModal(hotel.main_photo, 0)}
+                />
+
+                <button
+                  className="absolute bottom-4 right-4 bg-black/50 text-white px-4 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition flex items-center gap-2 cursor-pointer"
+                  onClick={() => openImageModal(hotel.main_photo, 0)}
+                >
+                  <Maximize2 size={16} />
+                  View Full Size
+                </button>
+
+                {allImages.length > 0 && (
+                  <div className="absolute top-4 left-4 bg-black/50 text-white px-3 py-1 rounded-lg text-sm flex items-center gap-1">
+                    <Image size={14} />
+                    <span>{allImages.length} photos</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Mobile View */}
@@ -532,6 +566,107 @@ const HotelDetails = () => {
                 </div>
               )}
             </div>
+
+            {/* Right Side Images */}
+            <div className="hidden md:block md:col-span-2 md:order-3">
+              {!showAllImages ? (
+                <div className="grid grid-cols-1 gap-2 md:translate-x-16">
+                  {allImages.slice(1, 5).map((img, i) => (
+                    <div
+                      key={i}
+                      className="relative group cursor-pointer h-[120px]"
+                    >
+                      <img
+                        src={img.url}
+                        className="w-3/4 h-full object-cover rounded-xl shadow-md"
+                        onClick={() => openImageModal(img.url, i + 1)}
+                      />
+                      {i === 3 && allImages.length > 5 && (
+                        <div
+                          className="absolute inset-0 bg-black bg-opacity-60 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-opacity-70 transition"
+                          onClick={() => setShowAllImages(true)}
+                        >
+                          <span className="text-white text-2xl font-bold">
+                            +{allImages.length - 5}
+                          </span>
+                          <span className="text-white text-sm">Show all</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 h-full overflow-y-auto max-h-[420px]">
+                  {allImages.slice(1).map((img, i) => (
+                    <div
+                      key={i}
+                      className="relative group cursor-pointer h-[205px]"
+                    >
+                      <img
+                        src={img.url}
+                        className="w-full h-full object-cover rounded-xl shadow-md"
+                        onClick={() => openImageModal(img.url, i + 1)}
+                      />
+                    </div>
+                  ))}
+                  <button
+                    className="col-span-2 mt-2 bg-teal-500 text-white py-2 rounded-lg hover:bg-teal-600 transition flex items-center justify-center gap-2"
+                    onClick={() => setShowAllImages(false)}
+                  >
+                    Show Less
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Hotel Price Details */}
+            <div className="md:col-span-3 md:order-4">
+              <div className="bg-white w-full rounded-2xl shadow-xl border border-gray-100 p-6 transition-all hover:shadow-2xl">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">Starting from</span>
+                    <div className="flex items-baseline gap-1 mt-1">
+                      <span className="text-3xl font-extrabold text-teal-600">
+                        {hotel.price || "₹5,499"}
+                      </span>
+                      <span className="text-gray-500 text-sm">/ night</span>
+                    </div>
+                  </div>
+                  <div className="bg-teal-50 text-teal-700 px-3 py-1 rounded-full text-xs font-semibold">
+                    Best Rate
+                  </div>
+                </div>
+
+                <div className="space-y-3 border-t border-b border-gray-100 py-4 my-4">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600 flex items-center gap-2">
+                      <Clock size={16} className="text-teal-500" /> Standard Room Rate
+                    </span>
+                    <span className="font-semibold text-gray-800">{hotel.price || "₹5,499"}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600 flex items-center gap-2">
+                      <Shield size={16} className="text-teal-500" /> Taxes & Fees (Included)
+                    </span>
+                    <span className="text-green-600 font-semibold">Free</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 px-3 py-2 rounded-xl mt-2">
+                    <CheckCircle size={14} />
+                    <span>Free cancellation before check-in</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setIsReservationModalOpen(true)}
+                  className="w-full py-3 bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white font-bold rounded-xl shadow-md transition-all duration-300 transform active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <CreditCard size={18} />
+                  Book Now / Reserve
+                </button>
+              </div>
+            </div>
+
+
           </div>
 
           {/* Show All Images Button for Desktop */}
@@ -551,7 +686,7 @@ const HotelDetails = () => {
         {/* Main Content */}
         <div className="max-w-7xl mx-auto px-6 pb-12">
           {/* Header Section */}
-          <div className="bg-white rounded-2xl shadow-xl p-6 -mt-8 relative z-10">
+          <div className="bg-white rounded-2xl shadow-xl p-6 mt-8 relative z-10">
             <div className="flex flex-col lg:flex-row justify-between items-start gap-6">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-3 flex-wrap">
@@ -636,70 +771,119 @@ const HotelDetails = () => {
 
           {/* About Section */}
           <div className="mt-8 bg-white rounded-2xl shadow-lg p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <Sparkles className="text-teal-500" />
-              About this hotel
-            </h2>
-            <div
-              className="text-gray-600 leading-relaxed prose max-w-none"
-              dangerouslySetInnerHTML={{ __html: hotel.hotelDescription }}
-            />
+            <button
+              type="button"
+              onClick={() => toggleSection("about")}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <Sparkles className="text-teal-500" />
+                About this hotel
+              </h2>
+              <span className="text-2xl font-semibold text-teal-600">
+                {expandedSections.about ? "−" : "+"}
+              </span>
+            </button>
+            {expandedSections.about && (
+              <div>
+                <p>
+                  Book from a wide range of hotels in Makkah and Madinah—from
+                  budget-friendly accommodations to luxury hotels near the Holy
+                  Mosques. Filter by distance, amenities, ratings, and price to
+                  find your perfect stay.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Facilities Section */}
           <div className="mt-8 bg-white rounded-2xl shadow-lg p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-              <Gift className="text-teal-500" />
-              Facilities & Amenities
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {hotel.hotelFacilities?.map((fac, index) => {
-                const Icon = getFacilityIcon(fac);
-                return (
-                  <HotelFacilities
-                    key={index}
-                    index={index}
-                    Icon={Icon}
-                    fac={fac}
-                  />
-                );
-              })}
-            </div>
+            <button
+              type="button"
+              onClick={() => toggleSection("facilities")}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <Gift className="text-teal-500" />
+                Facilities & Amenities
+              </h2>
+              <span className="text-2xl font-semibold text-teal-600">
+                {expandedSections.facilities ? "−" : "+"}
+              </span>
+            </button>
+            {expandedSections.facilities && (
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <p>hhhhhhhhhhhhhhhhhh</p>
+                {hotel.hotelFacilities?.map((fac, index) => {
+                  const Icon = getFacilityIcon(fac);
+                  return (
+                    <HotelFacilities
+                      key={index}
+                      index={index}
+                      Icon={Icon}
+                      fac={fac}
+                    />
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Policies Section */}
           <div className="mt-8 bg-white rounded-2xl shadow-lg p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-              <Shield className="text-teal-500" />
-              Hotel Policies
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {hotel.policies?.map((policy, index) => (
-                <HotelPolicies
-                  key={index}
-                  policy={policy}
-                  Icon={WiGaleWarning}
-                />
-              ))}
-            </div>
+            <button
+              type="button"
+              onClick={() => toggleSection("policies")}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <Shield className="text-teal-500" />
+                Hotel Policies
+              </h2>
+              <span className="text-2xl font-semibold text-teal-600">
+                {expandedSections.policies ? "−" : "+"}
+              </span>
+            </button>
+            {expandedSections.policies && (
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {hotel.policies?.map((policy, index) => (
+                  <HotelPolicies
+                    key={index}
+                    policy={policy}
+                    Icon={WiGaleWarning}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Important Information Section */}
           <div className="mt-8 bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl shadow-lg p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <CreditCard className="text-teal-500" />
-              Important Information
-            </h2>
-            <div
-              className="text-gray-700 leading-relaxed prose max-w-none"
-              dangerouslySetInnerHTML={{
-                __html: hotel.hotelImportantInformation,
-              }}
-            />
+            <button
+              type="button"
+              onClick={() => toggleSection("information")}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <CreditCard className="text-teal-500" />
+                Important Information
+              </h2>
+              <span className="text-2xl font-semibold text-teal-600">
+                {expandedSections.information ? "−" : "+"}
+              </span>
+            </button>
+            {expandedSections.information && (
+              <div
+                className="mt-4 text-gray-700 leading-relaxed prose max-w-none"
+                dangerouslySetInnerHTML={{
+                  __html: hotel.hotelImportantInformation,
+                }}
+              />
+            )}
           </div>
 
           {/* Map Section (Optional) */}
-          {hotel.location.latitude && hotel.location.longitude && (
+          {/* {hotel.location.latitude && hotel.location.longitude && (
             <div className="mt-8 bg-white rounded-2xl shadow-lg p-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                 <MapPin className="text-teal-500" />
@@ -714,7 +898,7 @@ const HotelDetails = () => {
                 />
               </div>
             </div>
-          )}
+          )} */}
         </div>
       </div>
       <HotelRoomAvailability

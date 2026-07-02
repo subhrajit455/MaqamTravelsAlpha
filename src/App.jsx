@@ -2,6 +2,8 @@ import Home from "./pages/Home";
 import { Routes, Route } from "react-router-dom";
 import Search from "./pages/Search";
 import HotelDetails from "./pages/HotelDetails";
+import HotelBookingDetails from "./pages/HotelBookingDetails";
+import SelectedRoomInformation from "./pages/SelectedRoomInformation";
 import Footer from "./components/Footer";
 import Hotel from "./pages/Hotel";
 import Flight from "./pages/Flight";
@@ -22,6 +24,8 @@ const App = () => {
         <Route path="/search" element={<Search />} />
         <Route path="/registration" element={<Registration />} />
         <Route path="/details/:id" element={<HotelDetails />} />
+        <Route path="/booking-details/:id" element={<HotelBookingDetails />} />
+        <Route path="/selected-room-information" element={<SelectedRoomInformation />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/hotel" element={<Hotel />} />
         <Route path="/flight" element={<Flight />} />

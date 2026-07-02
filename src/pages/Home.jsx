@@ -17,10 +17,11 @@ import { BsMoonStarsFill } from "react-icons/bs";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { BsForkKnife } from "react-icons/bs";
 import { FaUmbrellaBeach } from "react-icons/fa6";
-import PackageCard from "../components/PackageCard";
 // import HotelCard from "../components/HotelCard";
 import DestinationCard from "../components/DestinationCard";
-import Heroimage from "../assets/heroimage.jpg";
+import Heroimage1 from "../assets/heroimage.jpg";
+import Heroimage2 from "../assets/Madina wallpaper hd.jpg";
+import Heroimage3 from "../assets/madinah.jpg";
 import Logo from "../assets/logo.png";
 import { useNavigate } from "react-router-dom";
 import { SearchAPI } from "../configs/api";
@@ -31,7 +32,6 @@ import Forget from "../components/Forget";
 import ScrollToTop from "../components/ScrollToTop";
 import { toast } from "react-toastify";
 import { UserAPI } from "../configs/api";
-
 const Home = () => {
   const navigator = useNavigate();
   const scrollRef = useRef();
@@ -49,16 +49,19 @@ const Home = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
   const [register, setRegister] = useState({
     title: "Mr",
-    name: "",
+    firstname: "",
+    lastname: "",
     email: "",
     phone: "",
     password: "",
   });
   const [profileImage, setProfileImage] = useState(null);
   const [loginedUser, setLoginUser] = useState({
-    email: "",
+    mobilenumber: "",
     password: "",
   });
 
@@ -130,13 +133,15 @@ const Home = () => {
     },
   ];
 
-  const packages = Array(4).fill({
+  const packages = Array.from({ length: 18 }, (_, index) => ({
+    id: index + 1,
     title: "Istanbul, Turkey",
+    location: "Turkey",
     duration: "3 Days & 2 Nights",
-    price: "Rs. 15000",
+    price: "Rs. 15000 - 20000/-",
     image:
       "https://images.unsplash.com/photo-1541432901042-2d8bd64b4a9b?q=80&w=800",
-  });
+  }));
 
   const fetchHotelDetailsJED = async () => {
     try {
@@ -170,17 +175,23 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
-    const handleScroll = () => {
-      if (window.scrollY > 300) {
-        setShowScrollTop(true);
-      } else {
-        setShowScrollTop(false);
-      }
-    };
+    if (isHovered) return;
 
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+    const interval = setInterval(() => {
+      if (scrollRef.current) {
+        const current = scrollRef.current;
+        if (
+          current.scrollLeft + current.clientWidth >=
+          current.scrollWidth - 10
+        ) {
+          current.scrollTo({ left: 0, behavior: "smooth" });
+        } else {
+          current.scrollBy({ left: 300, behavior: "smooth" });
+        }
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [isHovered]);
 
   const scrollToTop = () => {
     window.scrollTo({
@@ -189,154 +200,173 @@ const Home = () => {
     });
   };
   const handleregister = async () => {
+    console.log("Register data:", register);
     // Validate required fields
-    if (
-      !register.name ||
-      !register.email ||
-      !register.password ||
-      !register.phone
-    ) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
+    // if (
+    //   !register.name ||
+    //   !register.email ||
+    //   !register.password ||
+    //   !register.phone
+    // ) {
+    //   toast.error("Please fill in all required fields");
+    //   return;
+    // }
 
-    setIsLoading(true);
-    try {
-      // Create FormData to handle file upload
-      const formData = new FormData();
-      formData.append("title", register.title);
-      formData.append("name", register.name);
-      formData.append("email", register.email);
-      formData.append("password", register.password);
-      formData.append("phone", register.phone);
+    // setIsLoading(true);
+    // try {
+    //   // Create FormData to handle file upload
+    //   const formData = new FormData();
+    //   formData.append("title", register.title);
+    //   formData.append("name", register.name);
+    //   formData.append("email", register.email);
+    //   formData.append("password", register.password);
+    //   formData.append("phone", register.phone);
 
-      // Append profile image if exists
-      if (profileImage) {
-        formData.append("profileImage", profileImage);
-      }
+    //   // Append profile image if exists
+    //   if (profileImage) {
+    //     formData.append("profileImage", profileImage);
+    //   }
 
-      console.log("FormData entries:");
-      for (const [key, value] of formData.entries()) {
-        console.log(key, value);
-      }
-      // Submit registration
-      const response = await fetch(`${UserAPI.UserRegisterApi}`, {
-        method: "POST",
-        body: formData,
-      });
+    //   console.log("FormData entries:");
+    //   for (const [key, value] of formData.entries()) {
+    //     console.log(key, value);
+    //   }
+    //   // Submit registration
+    //   const response = await fetch(`${UserAPI.UserRegisterApi}`, {
+    //     method: "POST",
+    //     body: formData,
+    //   });
 
-      const result = await response.json();
+    //   const result = await response.json();
 
-      if (result.success) {
-        console.log("Registration successful:", result);
-        toast.success("Registration successful!" || result.message);
-        // Reset form
-        setRegister({
-          title: "Mr",
-          name: "",
-          email: "",
-          phone: "",
-          password: "",
-        });
-        setProfileImage(null);
-        // Close register popup
-        setShowRegisterPopup(false);
-      } else {
-        toast.error(result.message || "Registration failed");
-        console.error("Registration error:", result);
-      }
-    } catch (error) {
-      console.error("Registration error:", error);
-      toast.error("An error occurred during registration");
-    } finally {
-      setIsLoading(false);
-    }
+    //   if (result.success) {
+    //     console.log("Registration successful:", result);
+    //     toast.success("Registration successful!" || result.message);
+    //     // Reset form
+    //     setRegister({
+    //       title: "Mr",
+    //       name: "",
+    //       email: "",
+    //       phone: "",
+    //       password: "",
+    //     });
+    //     setProfileImage(null);
+    //     // Close register popup
+    //     setShowRegisterPopup(false);
+    //   } else {
+    //     toast.error(result.message || "Registration failed");
+    //     console.error("Registration error:", result);
+    //   }
+    // } catch (error) {
+    //   console.error("Registration error:", error);
+    //   toast.error("An error occurred during registration");
+    // } finally {
+    //   setIsLoading(false);
+    // }
+
+    // dispatch(registerUser({ register, profileImage }))
   };
 
   const handleLogin = async () => {
+
+      console.log("Login data:", loginedUser);
+
     // Validate required fields
-    if (!loginedUser.email || !loginedUser.password) {
+    if (!loginedUser.mobilenumber || !loginedUser.password) {
       toast.error("Please fill in all required fields");
       return;
     }
 
-    setIsLoading(true);
-    try {
-      // Submit registration
-      const response = await fetch(`${UserAPI.UserLoginApi}`, {
-        method: "POST",
-        body: JSON.stringify(loginedUser),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
 
-      const result = await response.json();
-
-      if (result.success) {
-        console.log("Login successful:", result);
-        toast.success("Login successful!" || result.message);
-        localStorage.setItem("AuthToken", result.token);
-        // Reset form
-        setLoginUser({
-          email: "",
-          password: "",
-        });
-        // Close login popup
-        setShowLoginPopup(true);
-      } else {
-        toast.error(result.message || "Login failed");
-        console.error("Login error:", result);
-      }
-    } catch (error) {
-      console.error("Login error:", error);
-      toast.error("An error occurred during login");
-    } finally {
-      setIsLoading(false);
-    }
+    navigator("/");
+    setShowLoginPopup(true);
+    toast.success("Login successful!");
   };
   const handleSubmit = async (e) => {
-      e.preventDefault();
-      if (email) {
-        setIsLoading(true);
-        try {
-          const payload = { email };
-          const response = await fetch(UserAPI.UserForgetPasswordApi, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(payload),
-          });
-          const result = await response.json();
-          if (result.success) {
-            toast.success("Reset link sent to your email!" || result.message);
-            setSubmitted(true);
-            setEmail("");
-            setIsLoading(false);
-          } else {
-            toast.error("Failed to send reset link. Please try again." || result.message);
-            setIsLoading(false);
-          }
-        } catch (error) {
-          toast.error("An error occurred. Please try again." || error.message);
+    e.preventDefault();
+    if (email) {
+      setIsLoading(true);
+      try {
+        const payload = { email };
+        const response = await fetch(UserAPI.UserForgetPasswordApi, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        if (result.success) {
+          toast.success("Reset link sent to your email!" || result.message);
+          setSubmitted(true);
+          setEmail("");
+          setIsLoading(false);
+        } else {
+          toast.error(
+            "Failed to send reset link. Please try again." || result.message,
+          );
           setIsLoading(false);
         }
+      } catch (error) {
+        toast.error("An error occurred. Please try again." || error.message);
+        setIsLoading(false);
       }
-    };
+    }
+  };
+
+  const heroSlides = [
+    { src: Heroimage1, alt: "Maqam hero background" },
+    { src: Heroimage2, alt: "Maqam hero background 2" },
+    { src: Heroimage3, alt: "Maqam hero background 3" },
+  ];
+
+  useEffect(() => {
+    if (heroSlides.length <= 1) return;
+
+    const intervalId = window.setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % heroSlides.length);
+    }, 5000);
+
+    return () => window.clearInterval(intervalId);
+  }, [heroSlides.length]);
 
   return (
     <>
-      <section className="relative h-screen w-full font-poppins">
-        {/* Background Image */}
-        <img
-          src={Heroimage}
-          alt="mosque"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
+      <section className="relative h-screen w-full font-poppins overflow-hidden">
+        {/* Background Images */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div
+            className="flex h-full w-full transition-transform duration-700 ease-in-out"
+            style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+          >
+            {heroSlides.map((slide, index) => (
+              <div key={`${slide.alt}-${index}`} className="min-w-full h-full">
+                <img
+                  src={slide.src}
+                  alt={slide.alt}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* Overlay */}
         <div className="absolute inset-0 bg-black/50"></div>
+
+        {/* Slide Dots */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+          {heroSlides.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => setCurrentSlide(index)}
+              className={`h-2.5 rounded-full transition-all ${
+                index === currentSlide ? "w-8 bg-white" : "w-2.5 bg-white/60"
+              }`}
+              aria-label={`Go to slide ${index + 1}`}
+            />
+          ))}
+        </div>
 
         {/* Content */}
         <div className="relative z-10 flex flex-col items-center justify-start h-full text-center text-white px-4 pt-6">
@@ -399,7 +429,7 @@ const Home = () => {
           </div>
 
           {/* Heading */}
-          <h1 className="text-3xl md:text-5xl font-semibold mb-4 ">
+          <h1 className="text-3xl md:text-5xl font-semibold mb-4">
             Explore the World with Faith & Comfort
           </h1>
 
@@ -459,10 +489,12 @@ const Home = () => {
             {/* Scrollable Cards */}
             <div
               ref={scrollRef}
+              onMouseEnter={() => setIsHovered(true)}
+              onMouseLeave={() => setIsHovered(false)}
               className="flex gap-4 overflow-x-auto scrollbar-hide"
             >
-              {hotelJed &&
-                hotelJed.map((item, index) => (
+              {packages &&
+                packages.map((item, index) => (
                   <DestinationCard key={index} item={item} />
                 ))}
             </div>
@@ -500,8 +532,8 @@ const Home = () => {
               ref={scrollRef2}
               className="flex gap-4 overflow-x-auto scrollbar-hide"
             >
-              {hotelMed &&
-                hotelMed.map((item, index) => (
+              {packages &&
+                packages.map((item, index) => (
                   <DestinationCard key={index} item={item} />
                 ))}
             </div>
@@ -539,9 +571,9 @@ const Home = () => {
             Recommended Packages
           </h2>
 
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 justify-center items-center">
             {packages.map((pkg, index) => (
-              <PackageCard key={index} pkg={pkg} />
+              <DestinationCard key={index} item={pkg} />
             ))}
           </div>
         </div>
@@ -707,7 +739,7 @@ const Home = () => {
               <X size={15} />
             </button>
             <Login
-             setSubmitted={setSubmitted}
+              setSubmitted={setSubmitted}
               isLoading={isLoading}
               setShowLoginPopup={setShowLoginPopup}
               setShowRegisterPopup={setShowRegisterPopup}
@@ -760,7 +792,7 @@ const Home = () => {
               <X size={15} />
             </button>
             <Forget
-             handleSubmit={handleSubmit}
+              handleSubmit={handleSubmit}
               email={email}
               setEmail={setEmail}
               submitted={submitted}

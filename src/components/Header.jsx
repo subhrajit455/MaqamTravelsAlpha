@@ -21,7 +21,6 @@ export default function Header() {
   return (
     <div className="w-full bg-[#ebe6dd] shadow-sm font-poppins">
       <div className="max-w-6xl mx-auto relative flex items-center px-4 py-3">
-
         {/* Desktop Menu */}
         <div className="hidden md:flex w-full justify-center items-center gap-12">
           {menu.map((item, index) => {
@@ -47,10 +46,7 @@ export default function Header() {
         </div>
 
         {/* Mobile Menu Button */}
-        <button
-          className="md:hidden ml-auto"
-          onClick={() => setOpen(!open)}
-        >
+        <button className="md:hidden ml-auto" onClick={() => setOpen(!open)}>
           {open ? <X size={28} /> : <Menu size={28} />}
         </button>
       </div>
