@@ -1,7 +1,7 @@
-const router = require('express').Router();
-const crmController = require('./crm.controller');
-const crmValidator = require('./crm.validator');
-const validate = require('../../middleware/validate');
+const router = require("express").Router();
+const crmController = require("./crm.controller");
+const crmValidator = require("./crm.validator");
+const validate = require("../../middleware/validate");
 
 /**
  * ─── CRM ROUTES ────────────────────────────────────────
@@ -13,24 +13,49 @@ const validate = require('../../middleware/validate');
 // TODO: Add RBAC middleware to check admin/agent role
 
 // Get all leads
-router.get('/leads', crmValidator.validateListLeads(), validate, crmController.listLeads);
+router.get(
+  "/leads",
+  crmValidator.validateListLeads(),
+  validate,
+  crmController.listLeads,
+);
 
 // Get lead details
-router.get('/leads/:leadId', crmValidator.validateLeadId(), validate, crmController.getLeadDetails);
+router.get(
+  "/leads/:leadId",
+  crmValidator.validateLeadId(),
+  validate,
+  crmController.getLeadDetails,
+);
 
 // Create lead
-router.post('/leads', crmValidator.validateCreateLead(), validate, crmController.createLead);
+router.post(
+  "/leads",
+  crmValidator.validateCreateLead(),
+  validate,
+  crmController.createLead,
+);
 
 // Update lead
-router.put('/leads/:leadId', crmValidator.validateUpdateLead(), validate, crmController.updateLead);
+router.put(
+  "/leads/:leadId",
+  crmValidator.validateUpdateLead(),
+  validate,
+  crmController.updateLead,
+);
 
 // Convert lead to booking
-router.post('/leads/:leadId/convert', crmValidator.validateLeadId(), validate, crmController.convertLead);
+router.post(
+  "/leads/:leadId/convert",
+  crmValidator.validateLeadId(),
+  validate,
+  crmController.convertLead,
+);
 
 // Get agent statistics
-router.get('/stats', crmController.getAgentStats);
+router.get("/stats", crmController.getAgentStats);
 
 // Get pipeline overview
-router.get('/pipeline', crmController.getPipelineOverview);
+router.get("/pipeline", crmController.getPipelineOverview);
 
 module.exports = router;

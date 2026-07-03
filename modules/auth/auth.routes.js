@@ -9,6 +9,7 @@ const validate = require('../../middleware/validate');
  */
 
 // Public routes
+router.get('/avatar-options', authController.getAvatarOptions);
 router.post('/register', authValidator.validateRegister(), validate, authController.register);
 router.post('/login', authValidator.validateLogin(), validate, authController.login);
 router.post('/refresh-token', authController.refreshToken);

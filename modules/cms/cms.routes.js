@@ -1,7 +1,7 @@
-const router = require('express').Router();
-const cmsController = require('./cms.controller');
-const cmsValidator = require('./cms.validator');
-const validate = require('../../middleware/validate');
+const router = require("express").Router();
+const cmsController = require("./cms.controller");
+const cmsValidator = require("./cms.validator");
+const validate = require("../../middleware/validate");
 
 /**
  * ─── CMS ROUTES ────────────────────────────────────────
@@ -10,10 +10,20 @@ const validate = require('../../middleware/validate');
  */
 
 // Public routes
-router.get('/pages/:slug', cmsValidator.validatePageSlug(), validate, cmsController.getPage);
-router.get('/faqs', cmsController.getFAQs);
-router.get('/blog', cmsController.listBlogPosts);
-router.get('/blog/:slug', cmsValidator.validatePageSlug(), validate, cmsController.getBlogPost);
+router.get(
+  "/pages/:slug",
+  cmsValidator.validatePageSlug(),
+  validate,
+  cmsController.getPage,
+);
+router.get("/faqs", cmsController.getFAQs);
+router.get("/blog", cmsController.listBlogPosts);
+router.get(
+  "/blog/:slug",
+  cmsValidator.validatePageSlug(),
+  validate,
+  cmsController.getBlogPost,
+);
 
 // Admin routes (TODO: Add admin middleware)
 // router.post('/pages', adminMiddleware, cmsValidator.validateCreatePage(), validate, cmsController.createPage);

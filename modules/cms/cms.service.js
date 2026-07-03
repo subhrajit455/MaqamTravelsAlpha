@@ -1,5 +1,5 @@
-const CMSPage = require('./cms.model');
-const logger = require('../../utils/logger');
+const CMSPage = require("./cms.model");
+const logger = require("../../utils/logger");
 
 /**
  * ─── CMS SERVICE ───────────────────────────────────────
@@ -17,17 +17,17 @@ const getPageBySlug = async (slug) => {
 
 const getFAQs = async ({ category, page = 1, limit = 10 }) => {
   try {
-    const query = { type: 'faq', isPublished: true };
+    const query = { type: "faq", isPublished: true };
     if (category) query.category = category;
-    
+
     const skip = (page - 1) * limit;
     const faqs = await CMSPage.find(query)
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ order: 1 });
-    
+
     const total = await CMSPage.countDocuments(query);
-    
+
     return {
       faqs,
       meta: {
@@ -46,13 +46,16 @@ const getFAQs = async ({ category, page = 1, limit = 10 }) => {
 const listBlogPosts = async ({ page = 1, limit = 10 }) => {
   try {
     const skip = (page - 1) * limit;
-    const posts = await CMSPage.find({ type: 'blog', isPublished: true })
+    const posts = await CMSPage.find({ type: "blog", isPublished: true })
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });
-    
-    const total = await CMSPage.countDocuments({ type: 'blog', isPublished: true });
-    
+
+    const total = await CMSPage.countDocuments({
+      type: "blog",
+      isPublished: true,
+    });
+
     return {
       posts,
       meta: {
@@ -70,7 +73,7 @@ const listBlogPosts = async ({ page = 1, limit = 10 }) => {
 
 const getBlogPostBySlug = async (slug) => {
   try {
-    return await CMSPage.findOne({ slug, type: 'blog', isPublished: true });
+    return await CMSPage.findOne({ slug, type: "blog", isPublished: true });
   } catch (error) {
     logger.error(`Get blog post failed: ${error.message}`);
     throw error;

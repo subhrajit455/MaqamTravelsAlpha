@@ -1,4 +1,4 @@
-const { createLogger, format, transports } = require('winston');
+const { createLogger, format, transports } = require("winston");
 const { combine, timestamp, printf, colorize, errors } = format;
 
 const devFormat = printf(({ level, message, timestamp, stack }) => {
@@ -6,13 +6,13 @@ const devFormat = printf(({ level, message, timestamp, stack }) => {
 });
 
 const logger = createLogger({
-  level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+  level: process.env.NODE_ENV === "production" ? "info" : "debug",
   format: combine(
-    timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
     errors({ stack: true }),
-    process.env.NODE_ENV === 'production'
+    process.env.NODE_ENV === "production"
       ? format.json()
-      : combine(colorize(), devFormat)
+      : combine(colorize(), devFormat),
   ),
   transports: [
     new transports.Console(),

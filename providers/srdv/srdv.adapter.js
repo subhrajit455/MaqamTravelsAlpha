@@ -92,7 +92,7 @@ const getFlightDetails = async (flightId) => {
   }
 };
 
-const ticketLLCCAdapter = async ()
+// const ticketLLCCAdapter = async ()
 
 module.exports = {
   searchHotels,
