@@ -31,8 +31,6 @@ import { useState } from "react";
                           }
       ]
 
-
-
 const Modal = ({ isModalOpen, setModalOpen }) => {
 
     const [currentImageIndex,setCurrentImageIndex] = useState(0);

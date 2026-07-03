@@ -150,7 +150,7 @@ const Login = ({
                 className=" cursor-pointer w-full bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-lg font-semibold"
                 onClick={handleSubmit(onSubmit)}
               >
-                Sign In
+                 {localStorage.getItem("accessToken") ? "Logout" : "Sign In"}
               </button>
             )}
             <p className="text-center text-sm text-gray-500 mt-6">
