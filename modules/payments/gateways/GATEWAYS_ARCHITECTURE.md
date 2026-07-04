@@ -6,42 +6,36 @@ Production-grade multi-gateway payment integration supporting **Razorpay**, **Pa
 
 ```
 modules/payments/
-├── gateways/                          # Multi-gateway implementations
-│   ├── paymentGateway.js              # Factory router for gateway selection
-│   ├── payment.model.js               # (at parent level)
-│   ├── payment.routes.js              # (at parent level)
-│   ├── payment.validator.js           # (at parent level)
-│   ├── payment.service.js             # (at parent level) - generic logic
-│   ├── payment.controller.js          # (at parent level) - generic endpoints
-│   │
-│   ├── razorpay/                      # Razorpay Implementation (ACTIVE)
-│   │   ├── razorpay.adapter.js        # Razorpay API integration
-│   │   ├── razorpay.client.js         # Facade/interface layer
-│   │   ├── razorpay.service.js        # Business logic layer
-│   │   ├── razorpay.controller.js     # HTTP request handlers
-│   │   └── razorpay.webhook.js        # Webhook handler (express router)
-│   │
-│   ├── paypal/                        # PayPal Implementation (TEMPLATE)
-│   │   ├── paypal.adapter.js          # PayPal API integration
-│   │   ├── paypal.client.js           # Facade/interface layer
-│   │   ├── paypal.service.js          # Business logic layer
-│   │   ├── paypal.controller.js       # HTTP handlers (TODO)
-│   │   └── paypal.webhook.js          # IPN handler (express router)
-│   │
-│   └── phonepe/                       # PhonePe Implementation (TEMPLATE)
-│       ├── phonepe.adapter.js         # PhonePe API integration
-│       ├── phonepe.client.js          # Facade/interface layer
-│       ├── phonepe.service.js         # Business logic layer
-│       ├── phonepe.controller.js      # HTTP handlers (TODO)
-│       └── phonepe.webhook.js         # Callback handler (express router)
+├── payment.model.js                   # Payment schema (Razorpay, PayPal, PhonePe fields)
+├── payment.routes.js                  # Unified payment endpoint routing
+├── payment.validator.js               # Common payment validator schemas
+├── payment.service.js                 # Generic payments logic
+├── payment.controller.js              # Generic API handlers
+├── paymentGateway.js                  # Gateway selection factory router
 │
-└── webhook/                           # (at root level)
-    └── razorpay/razorpay.webhook.js  # Mount point (references gateways/razorpay/razorpay.webhook.js)
+└── gateways/                          # Multi-gateway implementations
+    ├── razorpay/                      # Razorpay Gateway
+    │   ├── razorpay.adapter.js        # Low-level REST API calls
+    │   ├── razorpay.client.js         # Client interface facade
+    │   ├── razorpay.service.js        # Razorpay orchestrator
+    │   ├── razorpay.controller.js     # Express routes controller
+    │   └── razorpay.webhook.js        # Signature validation webhooks
+    │
+    ├── paypal/                        # PayPal Gateway
+    │   ├── paypal.adapter.js          # REST API + Auth token generator
+    │   ├── paypal.client.js           # Client facade
+    │   ├── paypal.service.js          # PayPal business logic
+    │   ├── paypal.controller.js       # Express routes controller
+    │   └── paypal.webhook.js          # IPN callback logic
+    │
+    └── phonepe/                       # PhonePe Gateway
+        ├── phonepe.adapter.js         # Request payload & checksum builder
+        ├── phonepe.client.js          # Client facade
+        ├── phonepe.service.js         # PhonePe business logic
+        ├── phonepe.controller.js      # Express routes controller
+        └── phonepe.webhook.js         # S2S callback & checksum checker
 ```
-in .md you are given other file Directory Structure and currently in my folder ther is other file directory.
-so i want to you analysis the full code base and writ correct file directory for all payment methid..
-in payple , phonepe both has no controller.js so i want to you give production level code base. just i
-want to past confiditiantial or creadintial  in .env then all payment will done and work . so write top level code  
+
 ## Architecture Pattern
 
 ### 1. **Adapter Layer** (`*adapter.js`)

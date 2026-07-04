@@ -1,5 +1,5 @@
 const express = require('express');
-const crypto = require('crypto');
+const axios = require('axios');
 const paypalService = require('./paypal.service');
 const Payment = require('../../payment.model');
 const logger = require('../../../../utils/logger');
@@ -11,32 +11,48 @@ const router = express.Router();
  * PayPal IPN (Instant Payment Notification) endpoint
  * 
  * This is a public endpoint for PayPal to send notifications
- * Security: We verify the event with PayPal API
+ * Security: We verify the event with PayPal API by posting back to check validity
  */
 
 /**
- * Verify PayPal IPN
+ * Verify PayPal IPN message signature
  * @param {object} body - IPN message body
- * @returns {Promise<boolean>}
+ * @returns {Promise<boolean>} True if valid and verified by PayPal
  */
 const verifyIPNSignature = async (body) => {
     try {
-        logger.info('[PayPal Webhook] Verifying IPN signature');
+        logger.info('[PayPal Webhook] Verifying IPN signature with PayPal API');
 
-        // TODO: Implement PayPal IPN verification
-        // 1. POST back to PayPal with 'cmd=_notify-validate'
-        // 2. Parse PayPal response
-        // 3. Return true if VERIFIED, false otherwise
+        // Construct URL-encoded parameters representing the original IPN message prepended with command
+        const params = new URLSearchParams();
+        params.append('cmd', '_notify-validate');
+        for (const key in body) {
+            params.append(key, body[key]);
+        }
 
-        throw new Error('PayPal IPN verification not yet implemented');
+        const paypalURL = process.env.PAYPAL_MODE === 'production'
+            ? 'https://ipnpb.paypal.com/cgi-bin/webscr'
+            : 'https://ipnpb.sandbox.paypal.com/cgi-bin/webscr';
+
+        const response = await axios.post(paypalURL, params.toString(), {
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'User-Agent': 'MaqamTravels-IPN-Verifier/1.0.0',
+            },
+            timeout: 10000,
+        });
+
+        const isVerified = response.data === 'VERIFIED';
+        logger.info(`[PayPal Webhook] Verification response: "${response.data}" (Verified: ${isVerified})`);
+        return isVerified;
     } catch (error) {
-        logger.error(`[PayPal Webhook] IPN verification error: ${error.message}`);
+        logger.error(`[PayPal Webhook] IPN verification request error: ${error.message}`);
         return false;
     }
 };
 
 /**
- * Handle payment completed
+ * Handle payment completed IPN
  */
 const handlePaymentCompleted = async (ipnData) => {
     try {
@@ -45,7 +61,7 @@ const handlePaymentCompleted = async (ipnData) => {
         const { txn_id: transactionId, custom: paymentId, mc_gross: amount, payment_status } = ipnData;
 
         if (payment_status !== 'Completed') {
-            logger.warn(`[PayPal Webhook] Payment not completed, status: ${payment_status}`);
+            logger.warn(`[PayPal Webhook] Payment status is not Completed: ${payment_status}`);
             return;
         }
 
@@ -57,23 +73,27 @@ const handlePaymentCompleted = async (ipnData) => {
             return;
         }
 
-        // Update payment with PayPal transaction info
-        payment.paypalTransactionId = transactionId;
-        payment.status = 'paid';
-        payment.verifiedAt = new Date();
-        await payment.save();
+        // Update payment with PayPal transaction info if not already paid
+        if (payment.status !== 'paid') {
+            payment.paypalTransactionId = transactionId;
+            payment.paypalCaptureId = transactionId; // For IPN, transactionId acts as captureId
+            payment.status = 'paid';
+            payment.verifiedAt = new Date();
+            await payment.save();
 
-        // Process successful payment
-        await paypalService.processSuccessfulPayment(paymentId);
-
-        logger.info(`[PayPal Webhook] Payment processed - Transaction: ${transactionId}`);
+            // Process successful payment
+            await paypalService.processSuccessfulPayment(paymentId);
+            logger.info(`[PayPal Webhook] Payment processed - Transaction: ${transactionId}`);
+        } else {
+            logger.info(`[PayPal Webhook] Payment already marked as paid - Transaction: ${transactionId}`);
+        }
     } catch (error) {
         logger.error(`[PayPal Webhook] Handle payment completed error: ${error.message}`);
     }
 };
 
 /**
- * Handle payment refunded
+ * Handle payment refunded IPN
  */
 const handlePaymentRefunded = async (ipnData) => {
     try {
@@ -90,13 +110,15 @@ const handlePaymentRefunded = async (ipnData) => {
         }
 
         // Update with refund info
-        payment.status = 'refunded';
-        payment.refundRefId = refundId;
-        payment.refundAmount = Math.abs(parseFloat(amount));
-        payment.refundProcessedAt = new Date();
-        await payment.save();
+        if (payment.status !== 'refunded') {
+            payment.status = 'refunded';
+            payment.refundRefId = refundId;
+            payment.refundAmount = Math.abs(parseFloat(amount));
+            payment.refundProcessedAt = new Date();
+            await payment.save();
 
-        logger.info(`[PayPal Webhook] Refund recorded - Refund ID: ${refundId}`);
+            logger.info(`[PayPal Webhook] Refund recorded - Refund ID: ${refundId}`);
+        }
     } catch (error) {
         logger.error(`[PayPal Webhook] Handle refund error: ${error.message}`);
     }
@@ -108,19 +130,19 @@ const handlePaymentRefunded = async (ipnData) => {
  */
 router.post('/ipn', async (req, res) => {
     try {
-        logger.info('[PayPal Webhook] IPN received');
+        logger.info('[PayPal Webhook] IPN request received');
 
         // Verify signature
         const isValid = await verifyIPNSignature(req.body);
 
         if (!isValid) {
-            logger.warn('[PayPal Webhook] Invalid IPN signature');
-            return res.status(403).json({ error: 'Invalid signature' });
+            logger.warn('[PayPal Webhook] Invalid IPN signature verification check');
+            return res.status(400).json({ error: 'Invalid IPN signature' });
         }
 
         const ipnData = req.body;
 
-        // Route based on transaction type
+        // Route based on transaction type or payment status
         switch (ipnData.txn_type) {
             case 'web_accept':
             case 'express_checkout':
@@ -133,19 +155,23 @@ router.post('/ipn', async (req, res) => {
                 await handlePaymentRefunded(ipnData);
                 break;
 
-            case 'recurring_payment':
-                logger.info('[PayPal Webhook] Recurring payment received');
-                break;
-
             default:
-                logger.info(`[PayPal Webhook] Unhandled transaction type: ${ipnData.txn_type}`);
+                // Check payment status directly if txn_type is missing or different
+                if (ipnData.payment_status === 'Completed') {
+                    await handlePaymentCompleted(ipnData);
+                } else if (ipnData.payment_status === 'Refunded' || ipnData.payment_status === 'Reversed') {
+                    await handlePaymentRefunded(ipnData);
+                } else {
+                    logger.info(`[PayPal Webhook] Unhandled IPN transaction. type: ${ipnData.txn_type}, status: ${ipnData.payment_status}`);
+                }
         }
 
-        // Always return 200 to acknowledge
-        res.json({ success: true });
+        // Always return 200 to acknowledge IPN reception to PayPal
+        res.status(200).send('IPN OK');
     } catch (error) {
-        logger.error(`[PayPal Webhook] IPN error: ${error.message}`);
-        res.json({ success: false, error: error.message });
+        logger.error(`[PayPal Webhook] IPN processing error: ${error.message}`);
+        // Return 200 even on processing errors to prevent PayPal from resending repeatedly
+        res.status(200).send('IPN Error Handled');
     }
 });
 

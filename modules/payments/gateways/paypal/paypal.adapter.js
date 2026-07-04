@@ -2,151 +2,246 @@
  * ─── PAYPAL ADAPTER ──────────────────────────────────
  * Handles all PayPal API calls
  * 
- * Similar to Razorpay adapter - single point of integration
- * When PayPal API changes, only this file changes
+ * This is the SINGLE POINT OF INTEGRATION with PayPal REST API
+ * Production-level gateway adapter
  */
 
 const axios = require('axios');
 const logger = require('../../../../utils/logger');
 const { AppError } = require('../../../../middleware/errorHandler');
 
-// Initialize PayPal client
+// Initialize PayPal client base
 const paypalClient = axios.create({
-    baseURL: process.env.PAYPAL_MODE === 'sandbox'
-        ? 'https://api.sandbox.paypal.com'
-        : 'https://api.paypal.com',
+    baseURL: process.env.PAYPAL_MODE === 'production'
+        ? 'https://api.paypal.com'
+        : 'https://api.sandbox.paypal.com',
     headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.PAYPAL_ACCESS_TOKEN}`,
     },
 });
 
+let tokenCache = {
+    token: null,
+    expiresAt: null
+};
+
 /**
- * Create PayPal order
- * @param {number} amount - Amount in INR
- * @param {string} bookingId - Booking reference
- * @param {object} customerDetails - { name, email, phone }
- * @returns {Promise}
+ * Fetch dynamic OAuth2 Access Token for PayPal API
+ * @returns {Promise<string>}
  */
-const createOrder = async (amount, bookingId, customerDetails) => {
+const getAccessToken = async () => {
+    if (tokenCache.token && tokenCache.expiresAt > Date.now()) {
+        return tokenCache.token;
+    }
+
+    const clientId = process.env.PAYPAL_CLIENT_ID;
+    const clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+        throw new AppError('PayPal credentials (PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET) are not configured in environment variables.', 500);
+    }
+
+    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const url = process.env.PAYPAL_MODE === 'production'
+        ? 'https://api.paypal.com/v1/oauth2/token'
+        : 'https://api.sandbox.paypal.com/v1/oauth2/token';
+    
     try {
-        logger.info(`[PayPal Adapter] Creating order: ${bookingId}`);
+        const response = await axios.post(url, 'grant_type=client_credentials', {
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                Authorization: `Basic ${auth}`,
+            },
+        });
 
-        // TODO: Implement PayPal API call
-        // const response = await paypalClient.post('/v2/checkout/orders', {
-        //   intent: 'CAPTURE',
-        //   purchase_units: [{
-        //     amount: {
-        //       currency_code: 'INR',
-        //       value: amount.toString(),
-        //     },
-        //     description: `Booking #${bookingId}`,
-        //     payee: {
-        //       name: customerDetails.name,
-        //       email: customerDetails.email,
-        //     },
-        //   }],
-        //   payer: {
-        //     name: { given_name: customerDetails.name },
-        //     email_address: customerDetails.email,
-        //     phone: { phone_number: { national_number: customerDetails.phone } },
-        //   },
-        // });
-
-        // return {
-        //   orderId: response.data.id,
-        //   amountInINR: amount,
-        //   currency: 'INR',
-        // };
-
-        throw new AppError('PayPal adapter not yet implemented', 501);
+        tokenCache.token = response.data.access_token;
+        // Expire 5 minutes early to prevent race conditions
+        tokenCache.expiresAt = Date.now() + (response.data.expires_in - 300) * 1000;
+        return tokenCache.token;
     } catch (error) {
-        logger.error(`[PayPal Adapter] Create order failed: ${error.message}`);
-        throw error;
+        logger.error(`[PayPal Adapter] OAuth authentication failed: ${error.response?.data ? JSON.stringify(error.response.data) : error.message}`);
+        throw new AppError(`PayPal Authentication failed: ${error.response?.data?.error_description || error.message}`, 500);
     }
 };
 
 /**
- * Capture PayPal payment
- * @param {string} orderId - PayPal order ID
- * @param {object} details - Capture details
- * @returns {Promise}
+ * Create PayPal Order
+ * @param {number} amount - Amount to charge
+ * @param {string} bookingId - Internal booking ID reference
+ * @param {object} customerDetails - { name, email, phone }
+ * @returns {Promise<object>} Order details
  */
-const capturePayment = async (orderId, details) => {
+const createOrder = async (amount, bookingId, customerDetails = {}) => {
+    try {
+        logger.info(`[PayPal Adapter] Creating order for booking: ${bookingId}, amount: ${amount}`);
+        
+        const token = await getAccessToken();
+        const currency = process.env.PAYPAL_CURRENCY || 'USD';
+
+        const response = await paypalClient.post('/v2/checkout/orders', 
+            {
+                intent: 'CAPTURE',
+                purchase_units: [{
+                    amount: {
+                        currency_code: currency,
+                        value: amount.toFixed(2),
+                    },
+                    description: `Travel Booking #${bookingId}`,
+                    custom_id: bookingId,
+                    reference_id: `booking_${bookingId}`,
+                }],
+                application_context: {
+                    brand_name: 'Maqam Travels',
+                    user_action: 'PAY_NOW',
+                    return_url: `${process.env.CLIENT_URL || 'http://localhost:3000'}/payment/paypal/success?bookingId=${bookingId}`,
+                    cancel_url: `${process.env.CLIENT_URL || 'http://localhost:3000'}/payment/paypal/cancel?bookingId=${bookingId}`,
+                }
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            }
+        );
+
+        logger.info(`[PayPal Adapter] Order created: ${response.data.id}`);
+
+        const approveLink = response.data.links.find(link => link.rel === 'approve')?.href;
+
+        return {
+            orderId: response.data.id,
+            amount,
+            currency,
+            status: response.data.status,
+            redirectUrl: approveLink || '',
+            links: response.data.links,
+        };
+    } catch (error) {
+        logger.error(`[PayPal Adapter] Create order failed: ${error.response?.data ? JSON.stringify(error.response.data) : error.message}`);
+        throw new AppError(
+            `Failed to create PayPal payment order: ${error.response?.data?.message || error.message}`,
+            error.response?.status || 500
+        );
+    }
+};
+
+/**
+ * Capture Authorized PayPal Payment Order
+ * @param {string} orderId - PayPal Order ID
+ * @returns {Promise<object>} Capture details
+ */
+const capturePayment = async (orderId) => {
     try {
         logger.info(`[PayPal Adapter] Capturing order: ${orderId}`);
+        
+        const token = await getAccessToken();
 
-        // TODO: Implement PayPal capture API call
-        // const response = await paypalClient.post(`/v2/checkout/orders/${orderId}/capture`, {
-        //   payment_source: {
-        //     paypal: {},
-        //   },
-        // });
+        const response = await paypalClient.post(`/v2/checkout/orders/${orderId}/capture`, 
+            {},
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            }
+        );
 
-        // return {
-        //   transactionId: response.data.purchase_units[0].payments.captures[0].id,
-        //   status: response.data.status,
-        // };
+        logger.info(`[PayPal Adapter] Order captured successfully: ${orderId}`);
 
-        throw new AppError('PayPal adapter not yet implemented', 501);
+        const purchaseUnit = response.data.purchase_units?.[0];
+        const capture = purchaseUnit?.payments?.captures?.[0];
+
+        if (!capture) {
+            throw new AppError('No capture found in PayPal capture response', 500);
+        }
+
+        return {
+            transactionId: capture.id,
+            status: response.data.status,
+            amount: parseFloat(capture.amount.value),
+            currency: capture.amount.currency_code,
+        };
     } catch (error) {
-        logger.error(`[PayPal Adapter] Capture payment failed: ${error.message}`);
-        throw error;
+        logger.error(`[PayPal Adapter] Capture failed: ${error.response?.data ? JSON.stringify(error.response.data) : error.message}`);
+        throw new AppError(
+            `Failed to capture PayPal payment: ${error.response?.data?.message || error.message}`,
+            error.response?.status || 500
+        );
     }
 };
 
 /**
- * Refund PayPal payment
- * @param {string} captureId - PayPal capture/transaction ID
- * @param {number} amount - Refund amount in INR
- * @param {string} reason
- * @returns {Promise}
+ * Refund Captured PayPal Payment
+ * @param {string} captureId - PayPal Capture ID (stored in transactionId/paypalCaptureId)
+ * @param {number} amount - Amount in original currency (optional, full refund if omitted)
+ * @param {string} reason - Refund reason
+ * @returns {Promise<object>} Refund details
  */
-const refundPayment = async (captureId, amount, reason = 'Refund requested') => {
+const refundPayment = async (captureId, amount, reason = 'Booking cancelled') => {
     try {
-        logger.info(`[PayPal Adapter] Refunding capture: ${captureId}`);
+        logger.info(`[PayPal Adapter] Processing refund for capture: ${captureId}`);
+        
+        const token = await getAccessToken();
+        const payload = {};
 
-        // TODO: Implement PayPal refund API call
-        // const response = await paypalClient.post(
-        //   `/v2/payments/captures/${captureId}/refund`,
-        //   {
-        //     amount: {
-        //       currency_code: 'INR',
-        //       value: amount.toString(),
-        //     },
-        //     note_to_payer: reason,
-        //   }
-        // );
+        if (amount) {
+            payload.amount = {
+                value: amount.toFixed(2),
+                currency_code: process.env.PAYPAL_CURRENCY || 'USD',
+            };
+        }
+        if (reason) {
+            payload.note_to_payer = reason;
+        }
 
-        // return {
-        //   refundId: response.data.id,
-        //   status: response.data.status,
-        // };
+        const response = await paypalClient.post(`/v2/payments/captures/${captureId}/refund`, 
+            payload,
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            }
+        );
 
-        throw new AppError('PayPal adapter not yet implemented', 501);
+        logger.info(`[PayPal Adapter] Refund created successfully: ${response.data.id}`);
+
+        return {
+            refundId: response.data.id,
+            status: response.data.status,
+            amount: response.data.amount ? parseFloat(response.data.amount.value) : amount,
+        };
     } catch (error) {
-        logger.error(`[PayPal Adapter] Refund failed: ${error.message}`);
-        throw error;
+        logger.error(`[PayPal Adapter] Refund failed: ${error.response?.data ? JSON.stringify(error.response.data) : error.message}`);
+        throw new AppError(
+            `Failed to process PayPal refund: ${error.response?.data?.message || error.message}`,
+            error.response?.status || 500
+        );
     }
 };
 
 /**
- * Get payment details
- * @param {string} orderId - PayPal order ID
- * @returns {Promise}
+ * Get Order Details from PayPal
+ * @param {string} orderId - PayPal Order ID
+ * @returns {Promise<object>} Order details
  */
 const getPaymentDetails = async (orderId) => {
     try {
-        logger.info(`[PayPal Adapter] Fetching order: ${orderId}`);
+        logger.info(`[PayPal Adapter] Fetching details for order: ${orderId}`);
+        
+        const token = await getAccessToken();
 
-        // TODO: Implement PayPal details fetch
-        // const response = await paypalClient.get(`/v2/checkout/orders/${orderId}`);
-        // return response.data;
+        const response = await paypalClient.get(`/v2/checkout/orders/${orderId}`, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        });
 
-        throw new AppError('PayPal adapter not yet implemented', 501);
+        return response.data;
     } catch (error) {
-        logger.error(`[PayPal Adapter] Get details failed: ${error.message}`);
-        throw error;
+        logger.error(`[PayPal Adapter] Fetch details failed: ${error.response?.data ? JSON.stringify(error.response.data) : error.message}`);
+        throw new AppError(
+            `Failed to fetch PayPal order details: ${error.response?.data?.message || error.message}`,
+            error.response?.status || 500
+        );
     }
 };
 
