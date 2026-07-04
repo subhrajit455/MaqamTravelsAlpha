@@ -1,49 +1,68 @@
-const router = require("express").Router();
-const paymentController = require("./payment.controller");
-const paymentValidator = require("./payment.validator");
-const validate = require("../../middleware/validate");
+const express = require('express');
+const razorpayController = require("./gateways/razorpay/razorpay.controller")
+const paymentValidator = require('./gateways/razorpay/payment.validator');
+const validate = require('../../middleware/validate');
+const { authenticate } = require('../../middleware/auth');
+
+const router = express.Router();
 
 /**
  * ─── PAYMENT ROUTES ────────────────────────────────────
- * Pattern: Create payment, verify payment, refund
- * Requires auth middleware
+ * Razorpay payment endpoints
+ * All endpoints require authentication
  */
 
-// TODO: Add auth middleware
 
-// Get payment details
+
+
+/**
+ * Create Razorpay Order
+ * POST /api/v1/payments/razorpay/create-order
+ * Body: { bookingId, bookingType, amount }
+ */
+router.post(
+  '/razorpay/create-order',
+  authenticate,
+  paymentValidator.validateCreatePaymentOrder,
+  validate,
+  razorpayController.createPaymentOrder
+);
+
+/**
+ * Verify Payment
+ * POST /api/v1/payments/razorpay/verify
+ * Body: { orderId, paymentId, signature }
+ * Called from frontend after Razorpay checkout
+ */
+router.post(
+  '/razorpay/verify',
+  authenticate,
+  paymentValidator.validateVerifyPayment,
+  validate,
+  razorpayController.verifyPayment
+);
+
+/**
+ * Get Payment Status
+ * GET /api/v1/payments/razorpay/:paymentId
+ */
 router.get(
-  "/:paymentId",
-  paymentValidator.validatePaymentId(),
-  validate,
-  paymentController.getPaymentDetails,
+  '/razorpay/:paymentId',
+  authenticate,
+  razorpayController.getPaymentStatus
 );
 
-// Get user's payments
-router.get("/", paymentController.getMyPayments);
-
-// Create payment (initiate)
+/**
+ * Refund Payment
+ * POST /api/v1/payments/razorpay/:paymentId/refund
+ * Body: { amount, reason }
+ */
 router.post(
-  "/",
-  paymentValidator.validateCreatePayment(),
+  '/razorpay/:paymentId/refund',
+  authenticate,
+  paymentValidator.validateRefundRequest,
   validate,
-  paymentController.createPayment,
-);
-
-// Verify payment (callback from Stripe/Razorpay)
-router.post(
-  "/verify",
-  paymentValidator.validateVerifyPayment(),
-  validate,
-  paymentController.verifyPayment,
-);
-
-// Request refund
-router.post(
-  "/:paymentId/refund",
-  paymentValidator.validatePaymentId(),
-  validate,
-  paymentController.requestRefund,
+  razorpayController.refundPayment
 );
 
 module.exports = router;

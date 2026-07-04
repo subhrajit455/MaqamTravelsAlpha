@@ -1,72 +1,77 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
+const { Schema } = mongoose;
 
-/**
- * ─── FLIGHT MODEL (Flight Booking Schema) ─────────────
- * Stores booking references only, not flight inventory
- * Inventory comes from SRDV API
- */
-
-const flightBookingSchema = new mongoose.Schema(
+const PassengerSchema = new Schema(
   {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-    // SRDV flight ID (external reference)
-    srdvFlightId: {
-      type: String,
-      required: true,
-    },
-    // Flight details snapshot at booking time
-    airline: String,
-    flightNumber: String,
-    departure: String,
-    arrival: String,
-    departTime: Date,
-    arrivalTime: Date,
-    duration: Number, // in minutes
-    price: Number,
-    currency: String,
-    seatClass: {
-      type: String,
-      enum: ['economy', 'business', 'firstclass'],
-    },
-    // Booking status
-    status: {
-      type: String,
-      enum: ['pending', 'confirmed', 'cancelled', 'completed'],
-      default: 'pending',
-    },
-    // Booking reference from SRDV
-    srdvBookingRef: String,
-    // Passenger details
-    passengers: [
-      {
-        name: String,
-        email: String,
-        phone: String,
-        dateOfBirth: Date,
-        passport: String,
-      },
-    ],
-    // Baggage info
-    baggageAllowance: String,
-    // Payment info (linked to Payment module)
-    paymentId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Payment',
-    },
+    travellerId: { type: Schema.Types.ObjectId, ref: "Traveller", required: true },
+    isLeadPax: { type: Boolean, default: false },
+
+    // Filled in only after Book/TicketGDS response, or the webhook
+    paxId: Number,                       // SRDV's PaxId (GDS responses)
+    ticketNumber: { type: String, default: "" },
+    ticketId: String,
+    ticketIssueDate: Date,
+    ticketStatus: String,                 // e.g. "OK"
   },
-  {
-    timestamps: true,
-  }
+  { _id: false }
 );
 
-// Indexes
-flightBookingSchema.index({ userId: 1 });
-flightBookingSchema.index({ srdvFlightId: 1 });
-flightBookingSchema.index({ departTime: 1 });
-flightBookingSchema.index({ status: 1 });
+const GstDetailsSchema = new Schema(
+  {
+    wantsInvoice: { type: Boolean, default: false },
+    companyName: String,
+    gstNumber: String,
+    companyAddress: String,
+    companyEmail: String,
+    companyContactNumber: String,
+  },
+  { _id: false }
+);
 
-module.exports = mongoose.model('FlightBooking', flightBookingSchema);
+const FlightBookingSchema = new Schema(
+  {
+    user: { type: Schema.Types.ObjectId, ref: "User", required: true },
+
+    // ---- Pre-call: from Search → FareQuote, needed for Book & TicketGDS ----
+    traceId: { type: String, required: true },
+    srdvType: String,
+    srdvIndex: String,
+    resultIndex: String,
+    isLCC: { type: Boolean, required: true },
+
+    fareSnapshot: Schema.Types.Mixed,     // Fare object from FareQuote, sent as-is to Book
+    totalAmount: Number,                  // your price incl. markup
+    markupAmount: Number,
+
+    isGstMandatory: Boolean,              // recorded from FareQuote response
+    gstDetails: GstDetailsSchema,         // optional unless isGstMandatory was true
+
+    // ---- Post-call: filled by Book response, or later by webhook/TicketGDS ----
+    pnr: String,
+    gdsPnr: String,
+    srdvBookingId: { type: Number, index: true },
+    lastTicketDate: Date,                 // GDS hold only — ticketing deadline
+
+    status: {
+      type: String,
+      enum: ["initiated", "pending", "confirmed", "failed", "aborted"],
+      default: "initiated",
+    },
+    remark: String,
+
+    ticketStatus: String,
+    invoiceNo: String,
+    invoiceStatus: String,
+
+    passengers: [PassengerSchema],
+
+    eTicketData: Schema.Types.Mixed,      // full FlightItinerary snapshot, for support/debugging
+
+    // ---- Payment ----
+    razorpayOrderId: String,
+    razorpayPaymentId: String,
+  },
+  { timestamps: true }
+);
+
+module.exports = mongoose.model("FlightBooking", FlightBookingSchema);

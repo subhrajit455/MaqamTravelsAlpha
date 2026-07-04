@@ -7,7 +7,7 @@ const searchFlights = async (req, res, next) => {
     const { departure, arrival, departDate, returnDate, passengers, tripType, page, limit } = req.body;
     
     const results = await flightService.searchFlights({
-      departure,
+      departure, 
       arrival,
       departDate,
       returnDate,

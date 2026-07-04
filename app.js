@@ -1,39 +1,42 @@
 require('dotenv').config();
-require('express-async-errors'); 
+require('express-async-errors');
 
-const express      = require('express');
-const cors         = require('cors');
-const helmet       = require('helmet');
-const morgan       = require('morgan');
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 
-const { apiLimiter }   = require('./middleware/rateLimiter');
+const { apiLimiter } = require('./middleware/rateLimiter');
 const { errorHandler } = require('./middleware/errorHandler');
-const logger           = require('./utils/logger');
+const logger = require('./utils/logger');
 
 // ─── Module Route imports (new structure) ─────────────────
-const authRoutes    = require('./modules/auth/auth.routes');
-const hotelRoutes   = require('./modules/hotels/hotel.routes');
-const flightRoutes  = require('./modules/flights/flight.routes');
+const authRoutes = require('./modules/auth/auth.routes');
+const hotelRoutes = require('./modules/hotels/hotel.routes');
+const flightRoutes = require('./modules/flights/flight.routes');
 const bookingRoutes = require('./modules/bookings/booking.routes');
-const tourRoutes    = require('./modules/tours/tour.routes');
+const tourRoutes = require('./modules/tours/tour.routes');
 const packageRoutes = require('./modules/packages/package.routes');
-const paymentRoutes = require('./modules/payments/payment.routes');
+const paymentRoutes = require("./modules/payments/payment.routes");
 const accountRoutes = require('./modules/account/account.routes');
-const cmsRoutes     = require('./modules/cms/cms.routes');
-const crmRoutes     = require('./modules/crm/crm.routes');
+const cmsRoutes = require('./modules/cms/cms.routes');
+const crmRoutes = require('./modules/crm/crm.routes');
+
+// ─── Webhook Routes (public, no auth required) ────────────
+const razorpayWebhook = require('./webhook/razorpay/razorpay.webhook');
 
 const app = express();
 app.use(cors({
   origin: [
-   
-      "http://192.168.0.123:5173", // For network access
-    "http://localhost:5173"  
+
+    "http://192.168.0.123:5173", // For network access
+    "http://localhost:5173"
   ],
-  credentials: true, 
+  credentials: true,
 }));
 // Force handle preflight requests globally
-app.options('*', cors()); 
+app.options('*', cors());
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
@@ -43,6 +46,10 @@ app.use(helmet({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// ─── Webhook Routes (BEFORE rate limiter, NO auth required) ─────
+// Webhooks need to be outside rate limiting
+app.use('/webhook', razorpayWebhook);
 
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
@@ -57,20 +64,20 @@ app.use('/api', apiLimiter);
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    env:    process.env.NODE_ENV,
+    env: process.env.NODE_ENV,
     uptime: process.uptime(),
   });
 });
 
-app.use('/api/v1/auth',     authRoutes);
-app.use('/api/v1/hotels',   hotelRoutes);
-app.use('/api/v1/flights',  flightRoutes);
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/hotels', hotelRoutes);
+app.use('/api/v1/flights', flightRoutes);
 app.use('/api/v1/bookings', bookingRoutes);
-app.use('/api/v1/tours',    tourRoutes);
+app.use('/api/v1/tours', tourRoutes);
 app.use('/api/v1/packages', packageRoutes);
 app.use('/api/v1/payments', paymentRoutes);
-app.use('/api/v1/account',  accountRoutes);
-app.use('/api/v1/cms',      cmsRoutes);
+app.use('/api/v1/account', accountRoutes);
+app.use('/api/v1/cms', cmsRoutes);
 
 // ─── CRM Routes (prefix-gated — mounts only when slug matches) ──
 // The actual CRM route file checks the prefix at the middleware level too

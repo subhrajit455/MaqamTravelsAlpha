@@ -279,7 +279,9 @@ REDIS_URL=redis://localhost:6379
 - Passport/ID required for flight bookings?
 - Deployment target (AWS / DigitalOcean / VPS)?
 - International payments (PayPal) at launch or phase 2?
-
+- First of all i want to complete or implemenrt razorpay , remember I will use 
+  SRDV API so rememberthis things and implement one of the
+  best Way to configure razorpay.
 ---
 
 ## Customer-Facing Pages (from product doc)

@@ -19,6 +19,12 @@ const paymentSchema = new mongoose.Schema(
       ref: 'Booking',
       required: true,
     },
+    // Booking type (for multi-type bookings)
+    bookingType: {
+      type: String,
+      enum: ['flight', 'hotel', 'tour', 'package'],
+      required: true,
+    },
     // Payment details
     amount: {
       type: Number,
@@ -26,24 +32,43 @@ const paymentSchema = new mongoose.Schema(
     },
     currency: {
       type: String,
-      default: 'USD',
+      default: 'INR',
     },
     // Payment gateway
     paymentMethod: {
       type: String,
-      enum: ['stripe', 'razorpay', 'paypal', 'bank_transfer'],
+      enum: ['razorpay', 'phonepe', 'paypal', 'stripe', 'bank_transfer'],
       required: true,
     },
+    // Razorpay specific fields
+    razorpayOrderId: {
+      type: String,
+      index: true,
+    },
+    razorpayPaymentId: {
+      type: String,
+      index: true,
+    },
     transactionId: String,
+    // Payment method details
+    paymentDetails: {
+      method: String, // 'card', 'upi', 'netbanking', 'wallet'
+      cardLast4: String,
+      vpa: String, // For UPI
+      bankName: String,
+      acquirerName: String,
+    },
     // Status
     status: {
       type: String,
       enum: Object.values(PAYMENT_STATUS),
       default: PAYMENT_STATUS.PENDING,
     },
+    failureReason: String,
     // Timestamps
     verifiedAt: Date,
     // Refund info
+    refundRefId: String,
     refundAmount: Number,
     refundReason: String,
     refundRequestedAt: Date,
@@ -53,6 +78,7 @@ const paymentSchema = new mongoose.Schema(
       invoiceNumber: String,
       notes: String,
     },
+    notes: mongoose.Schema.Types.Mixed, // Store webhook notes
   },
   {
     timestamps: true,
