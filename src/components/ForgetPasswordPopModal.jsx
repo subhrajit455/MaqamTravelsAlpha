@@ -1,26 +1,20 @@
-import React, { useState } from "react";
 import { Mail, Lock, Eye, EyeOff, Phone } from "lucide-react";
-import { FcGoogle } from "react-icons/fc";
-import { FaFacebookF, FaApple } from "react-icons/fa";
-import Loginimage from "../assets/login.jpg";
-import { NavLink } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { useDispatch, useSelector } from "react-redux";
-import { loginUser } from "../components/reducer/AuthSlice";
-import { toast } from "react-toastify";
-const Login = ({
+import Loginimage from "../assets/login.jpg";
+const ForgetPasswordPopModal = ({
   setShowLoginPopup,
   setShowRegisterPopup,
   setShowForgetPopup,
   setShowPassword,
   showPassword,
+  setShowconfirmPassword,
+  showconfirmPassword,
   setLoginUser,
   loginedUser,
   handleLogin,
   isLoading,
   setSubmitted,
 }) => {
-  const dispatch = useDispatch();
   const {
     handleSubmit,
     register,
@@ -28,19 +22,7 @@ const Login = ({
   } = useForm();
 
   const onSubmit = (data) => {
-    const payload = {
-      phone: data.mobilenumber,
-      password: data.password,
-    };
-    dispatch(loginUser(payload)).then((response) => {
-      const accessToken = localStorage.getItem("accessToken");
-      if (response.payload.status === 200 && accessToken) {
-        toast.success(response.payload.data.message || "Login successful!");
-        setShowLoginPopup(true);
-      } else if (response.payload.status === 401 || response.payload.status === 409) {
-        toast.error(response.payload.data.message);
-      }
-    });
+    console.log("ForgetPasswordPopModal data Check", data);
   };
 
   return (
@@ -71,41 +53,24 @@ const Login = ({
 
           <div className="p-8 sm:p-10 flex flex-col justify-center bg-white font-poppins">
             <h2 className="text-3xl sm:text-4xl font-bold text-teal-600 text-center">
-              Welcome
+              Welcome To
             </h2>
 
             <p className="text-center text-gray-500 mt-2 mb-8">
-              Login with Mobile Number
+              Forget Password
             </p>
 
             {/* EMAIL */}
 
-            <div className="mb-4 relative">
-              <Phone
-                className="absolute left-3 top-4 text-teal-400"
-                size={18}
-              />
-              <input
-                type="number"
-                placeholder="Mobile Number"
-                {...register("mobilenumber", {
-                  required: "Mobile number is required",
-                })}
-                className="w-full pl-10 pr-4 py-3 border border-teal-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-teal-400"
-              />
-              {errors.mobilenumber && (
-                <p className="text-red-500 text-sm py-2">
-                  {errors.mobilenumber.message}
-                </p>
-              )}
-            </div>
+            <label className="block text-sm font-medium text-gray-500 mb-2">
+              Password
+            </label>
 
-            {/* PASSWORD */}
-            <div className="mb-2 relative">
+            <div className="mb-4 relative">
               <Lock className="absolute left-3 top-4 text-teal-400" size={18} />
               <input
                 type={showPassword ? "text" : "password"}
-                placeholder="Password"
+                placeholder="Enter password"
                 {...register("password", {
                   required: "Password is required",
                 })}
@@ -125,7 +90,35 @@ const Login = ({
               </button>
             </div>
 
-            <div
+            {/* PASSWORD */}
+            <label className="block text-sm font-medium text-gray-500 mb-2">
+              Confirm Password
+            </label>
+            <div className="mb-2 relative">
+              <Lock className="absolute left-3 top-4 text-teal-400" size={18} />
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter confirm password"
+                {...register("confirmpassword", {
+                  required: "Confirm Password is required",
+                })}
+                className="w-full pl-10 pr-4 py-3 border border-teal-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-teal-400"
+              />
+              {errors.confirmpassword && (
+                <p className="text-red-500 text-sm py-2">
+                  {errors.confirmpassword.message}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => ShowconfirmPassword(!showconfirmPassword)}
+                className="absolute right-3 top-4 text-teal-400 hover:text-teal-600 cursor-pointer"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+
+            {/* <div
               className="text-right text-sm text-teal-500 mb-6 cursor-pointer"
               onClick={() => {
                 setShowLoginPopup(false);
@@ -134,7 +127,7 @@ const Login = ({
               }}
             >
               Forgot your password?
-            </div>
+            </div> */}
 
             {/* LOGIN BUTTON */}
             {isLoading ? (
@@ -149,23 +142,10 @@ const Login = ({
                 className=" cursor-pointer w-full bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-lg font-semibold"
                 onClick={handleSubmit(onSubmit)}
               >
-                logIn
+                Resend
                 {/* {localStorage.getItem("accessToken") ? "Logout" : "Sign In"} */}
               </button>
             )}
-            <p className="text-center text-sm text-gray-500 mt-6">
-              Don’t have account?
-              <span
-                className="text-teal-600 font-semibold cursor-pointer"
-                onClick={() => {
-                  setShowLoginPopup(false);
-                  setShowRegisterPopup(true);
-                }}
-              >
-                {" "}
-                Sign Up Now
-              </span>
-            </p>
           </div>
         </div>
       </div>
@@ -173,4 +153,4 @@ const Login = ({
   );
 };
 
-export default Login;
+export default ForgetPasswordPopModal;

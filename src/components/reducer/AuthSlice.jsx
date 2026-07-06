@@ -6,7 +6,7 @@ export const registerUser = createAsyncThunk(
   async (userData, { rejectWithValue }) => {
     try {
       const response = await api.post(
-        "http://192.168.0.144:5000/api/v1/auth/register",
+        "http://192.168.0.105:5000/api/v1/auth/register",
         userData,
       );
       return response;
@@ -21,7 +21,7 @@ export const loginUser = createAsyncThunk(
   async (userData, { rejectWithValue }) => {
     try {
       const response = await api.post(
-        "http://192.168.0.144:5000/api/v1/auth/login",
+        "http://192.168.0.105:5000/api/v1/auth/login",
         userData,
       );
       return response;
@@ -36,7 +36,70 @@ export const logoutUser = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await api.post(
-        "http://192.168.0.144:5000/api/v1/auth/logout",
+        "http://192.168.0.105:5000/api/v1/auth/logout",
+      );
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.response);
+    }
+  },
+);
+
+export const forgotPassword = createAsyncThunk(
+  "auth/forgotPassword",
+  async (phoneData, { rejectWithValue }) => {
+    try {
+      const response = await api.post(
+        "http://192.168.0.105:5000/api/v1/auth/forgot-password",
+        {
+          phone: phoneData,
+        },
+      );
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.response);
+    }
+  },
+);
+
+export const verifyOtp = createAsyncThunk(
+  "auth/verifyOtp",
+  async (otpData, { rejectWithValue }) => {
+    try {
+      const response = await api.post(
+        "http://192.168.0.105:5000/api/v1/auth/verify-otp",
+        {
+          resetToken: otpData,
+        },
+      );
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.response);
+    }
+  },
+);
+
+export const resetPassword = createAsyncThunk(
+  "auth/resetPassword",
+  async (passwordData, { rejectWithValue }) => {
+    try {
+      const response = await api.post(
+        "http://192.168.0.105:5000/api/v1/auth/reset-password",
+        passwordData,
+      );
+      return response;
+    } catch (error) {
+      return rejectWithValue(error.response);
+    }
+  },
+);
+
+export const refreshToken = createAsyncThunk(
+  "auth/refreshToken",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.post(
+        "http://192.168.0.144:5000/api/v1/auth/refresh-token",
       );
       return response.data;
     } catch (error) {
@@ -90,9 +153,44 @@ const authSlice = createSlice({
       .addCase(logoutUser.rejected, (state, action) => {
         state.user = null;
         state.isAuthenticated = false;
+      })
+      .addCase(forgotPassword.pending, (state, action) => {
+        state.user = null;
+        state.isAuthenticated = false;
+      })
+      .addCase(forgotPassword.fulfilled, (state, action) => {
+        state.user = null;
+        state.isAuthenticated = false;
+      })
+      .addCase(forgotPassword.rejected, (state, action) => {
+        state.user = null;
+        state.isAuthenticated = false;
+      })
+      .addCase(verifyOtp.pending, (state, action) => {
+        state.user = null;
+        state.isAuthenticated = false;
+      })
+      .addCase(verifyOtp.fulfilled, (state, action) => {
+        state.user = action.payload;
+        state.isAuthenticated = true;
+      })
+      .addCase(verifyOtp.rejected, (state, action) => {
+        state.user = null;
+        state.isAuthenticated = false;
+      })
+      .addCase(refreshToken.pending, (state, action) => {
+        state.user = null;
+        state.isAuthenticated = false;
+      })
+      .addCase(refreshToken.fulfilled, (state, action) => {
+        state.user = action.payload;
+        state.isAuthenticated = true;
+      })
+      .addCase(refreshToken.rejected, (state, action) => {
+        state.user = null;
+        state.isAuthenticated = false;
       });
   },
 });
 
-// export const { login, logout } = authSlice.actions;
 export default authSlice.reducer;

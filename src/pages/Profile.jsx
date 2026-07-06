@@ -3,7 +3,8 @@ import DatePicker from "react-datepicker";
 import Select from "react-select";
 import { ChevronDown } from "lucide-react";
 import "react-datepicker/dist/react-datepicker.css";
-
+import LogOutPopModal from "../components/LogOutPopModal";
+import ResetPasswordModal from "../components/ChangePasswordModal";
 import {
   X,
   Save,
@@ -112,6 +113,8 @@ const ProfileSettings = () => {
   });
 
   const [activeTab, setActiveTab] = useState("profile");
+  const [isModalOpen, setModalOpen] = useState(false);
+  const [isResetPasswordModal, setResetPasswordModal] = useState(false);
 
   const handleInputChange = (field, value) => {
     setProfileData((prev) => ({
@@ -191,11 +194,14 @@ const ProfileSettings = () => {
 
             <div
               className={` ${
-                activeTab === "logged-in-devices"
+                activeTab === "logged-in-devices" && isModalOpen
                   ? "bg-teal-100 flex items-center gap-2 bg-gray-100 p-2 rounded-md w-full h-12 cursor-pointer"
                   : "flex items-center gap-2 bg-gray-100 p-2 rounded-md w-full h-12 hover:bg-gray-200 cursor-pointer"
               }`}
-              onClick={() => setActiveTab("logged-in-devices")}
+              onClick={() => {
+                setActiveTab("logged-in-devices");
+                setModalOpen(true);
+              }}
             >
               <Laptop size={20} color="#6B7280" />
               <p className="text-gray-400 text-sm">Logged In Devices</p>
@@ -203,14 +209,17 @@ const ProfileSettings = () => {
 
             <div
               className={` ${
-                activeTab === "Reset Password"
+                activeTab === "Change Password" && isResetPasswordModal
                   ? "bg-teal-100 flex items-center gap-2 bg-gray-100 p-2 rounded-md w-full h-12 cursor-pointer"
                   : "flex items-center gap-2 bg-gray-100 p-2 rounded-md w-full h-12 hover:bg-gray-200 cursor-pointer"
               }`}
-              onClick={() => setActiveTab("Reset Password")}
+              onClick={() => {
+                setActiveTab("Reset Password");
+                setResetPasswordModal(true);
+              }}
             >
               <Laptop size={20} color="#6B7280" />
-              <p className="text-gray-400 text-sm">Reset Password</p>
+              <p className="text-gray-400 text-sm">Change Password</p>
             </div>
 
             <div className="border-l border-gray-300" />
@@ -294,27 +303,27 @@ const ProfileSettings = () => {
                 {/* Grid Form */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-20">
                   <Input
-                    label="Name"
+                    label="First Name"
                     type="text"
                     value={profileData.name}
                     onChange={(value) => handleInputChange("name", value)}
                     disabled={!isEditing}
                   />
-                  <Input
+                  {/* <Input
                     label="Email (required)"
                     type="email"
                     value={profileData.email}
                     onChange={(value) => handleInputChange("email", value)}
                     disabled={true} // Email is always disabled
-                  />
+                  /> */}
                   <Input
-                    label="Phone"
+                    label="Last Name"
                     value={profileData.phone}
                     onChange={(value) => handleInputChange("phone", value)}
                     disabled={!isEditing}
                   />
 
-                  <div>
+                  {/* <div>
                     <label className="text-sm text-teal-500">
                       Date of Birth
                     </label>
@@ -327,8 +336,8 @@ const ProfileSettings = () => {
                       disabled={!isEditing}
                       className="w-full border border-teal-300 rounded-md p-2 mt-1 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
-                  </div>
-                  <div>
+                  </div> */}
+                  {/* <div>
                     <label className="text-sm text-teal-500">Gender</label>
                     <select
                       value={profileData.gender}
@@ -342,9 +351,9 @@ const ProfileSettings = () => {
                       <option>Female</option>
                       <option>Other</option>
                     </select>
-                  </div>
+                  </div> */}
 
-                  <div>
+                  {/* <div>
                     <label className="text-sm text-teal-500">
                       Marital Status
                     </label>
@@ -360,36 +369,37 @@ const ProfileSettings = () => {
                       <option>Single</option>
                       <option>Other</option>
                     </select>
-                  </div>
+                  </div> */}
                   <div>
                     <label className="text-sm text-teal-500">
-                      Anniversary Date
+                      Mobile Number
                     </label>
                     <input
-                      value={profileData.anniversaryDate}
+                      value={profileData.mobileNumber}
                       onChange={(e) =>
-                        handleInputChange("anniversaryDate", e.target.value)
+                        handleInputChange("mobileNumber", e.target.value)
                       }
-                      type="date"
+                      type="text"
                       disabled={!isEditing}
                       className="w-full border border-teal-300 rounded-md p-2 mt-1 focus:outline-none focus:ring-2 focus:ring-teal-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                     />
                   </div>
 
                   <Input
-                    label="Nationality"
+                    label="Password"
+                    type="password"
                     value={profileData.nationality}
                     onChange={(value) =>
                       handleInputChange("nationality", value)
                     }
-                    disabled={!isEditing}
+                    // disabled={!isEditing}
                   />
                 </div>
 
                 {/* Contact Info */}
-                <h2 className="font-semibold text-teal-600">Contact Info</h2>
+                {/* <h2 className="font-semibold text-teal-600">Contact Info</h2> */}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
                     label="Address Line 1"
                     value={profileData.addressLine1}
@@ -430,14 +440,14 @@ const ProfileSettings = () => {
                     onChange={(value) => handleInputChange("country", value)}
                     disabled={!isEditing}
                   />
-                </div>
+                </div> */}
 
                 {/* Contact Info */}
-                <h2 className="font-semibold text-teal-600">
+                {/* <h2 className="font-semibold text-teal-600">
                   Preferences Info
-                </h2>
+                </h2> */}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm text-teal-500">
                       Preferred Hotel Type
@@ -506,10 +516,10 @@ const ProfileSettings = () => {
                       <option>Non-Smoking</option>
                     </select>
                   </div>
-                </div>
+                </div> */}
 
                 {/* Bio */}
-                <div>
+                {/* <div>
                   <h2 className="font-semibold text-teal-600 mb-2">
                     About the User
                   </h2>
@@ -521,7 +531,7 @@ const ProfileSettings = () => {
                     rows={5}
                     placeholder="Tell us about yourself..."
                   />
-                </div>
+                </div> */}
               </div>
             )}
 
@@ -754,7 +764,6 @@ const ProfileSettings = () => {
                 </div>
 
                 {/*Passport Details */}
-
                 <div className="grid gap-2 w-full mt-5">
                   <p className="text-sm text-teal-500">Passport Details</p>
 
@@ -809,30 +818,8 @@ const ProfileSettings = () => {
                     /> */}
                   </div>
                 </div>
-
                 {/* Add contact information to receive booking details & other alerts */}
               </div>
-
-              // <div>
-              //   {/* Header */}
-              //   <div className="flex flex-col sm:flex-row justify-between items-center gap-4 w-full">
-              //     <p className="text-lg font-semibold text-teal-500">
-              //       Co-Travellers
-              //     </p>
-
-              //     <div className="flex items-center gap-2 cursor-pointer">
-              //       <ArrowLeft size={20} color="#008CFF" strokeWidth={3} />
-              //       <h2 className="text-xl font-bold">Add New Co-Traveller</h2>
-              //     </div>
-              //   </div>
-
-              //   {/* Center Text */}
-              //   <div className="w-full flex justify-center items-center mt-6">
-              //     <h2 className="text-base font-semibold text-gray-600">
-              //      -- Co-Travellers added here--
-              //     </h2>
-              //   </div>
-              // </div>
             )}
 
             {activeTab === "logged-in-devices" && (
@@ -842,6 +829,13 @@ const ProfileSettings = () => {
             )}
           </div>
         </div>
+        {/*Modal for Logout Confirmation*/}
+        <LogOutPopModal isModalOpen={isModalOpen} setModalOpen={setModalOpen} />
+        {/*Modal for Reset Password*/}
+        <ResetPasswordModal
+          isResetPasswordModal={isResetPasswordModal}
+          setResetPasswordModal={setResetPasswordModal}
+        />
       </div>
     </>
   );

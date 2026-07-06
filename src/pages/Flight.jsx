@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ChevronDown,  } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import CommonHeader from "../components/CommonHeader";
 import { FlightAPI } from "../configs/api";
 import { toast } from "react-toastify";
@@ -246,54 +246,66 @@ const FlightSearch = () => {
   return (
     <>
       <CommonHeader title="Flight" />
-
-        <div>     
+      <div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-0 border border-gray-200 rounded-lg w-2/3 mx-auto m-4 overflow-hidden">
-        {/* From */}
-        <div className="p-4 cursor-pointer hover:bg-gray-50 transition">
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">From</p>
-          <p className="text-2xl font-bold text-gray-900">Delhi</p>
-          <p className="text-sm text-gray-600">DEL, Indira Gandhi International Airport</p>
-        </div>
-        
-        {/* To */}
-        <div className="p-4 border-l border-gray-200 cursor-pointer hover:bg-gray-50 transition">
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">To</p>
-          <p className="text-2xl font-bold text-gray-900">Bengaluru</p>
-          <p className="text-sm text-gray-600">BLR, Kempegowda International Airport</p>
-        </div>
-        
-        {/* Departure */}
-        <div className="p-4 border-l border-gray-200 cursor-pointer hover:bg-gray-50 transition">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-xs text-gray-500 uppercase tracking-wide">Departure</p>
-            <ChevronDown className="w-4 h-4 text-[#2276E3]" />
+          {/* From */}
+          <div className="p-4 cursor-pointer hover:bg-gray-50 transition">
+            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+              From
+            </p>
+            <p className="text-2xl font-bold text-gray-900">Delhi</p>
+            <p className="text-sm text-gray-600">
+              DEL, Indira Gandhi International Airport
+            </p>
           </div>
-          <p className="text-2xl font-bold text-gray-900">2 Jul 26</p>
-          <p className="text-sm text-gray-600">Monday</p>
-        </div>
-        
-        {/* Return */}
-        <div className="p-4 border-l border-gray-200 cursor-pointer hover:bg-gray-50 transition">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-xs text-gray-500 uppercase tracking-wide">Return</p>
-            <ChevronDown className="w-4 h-4 text-[#2276E3]" />
-          </div>
-          <p className="text-lg font-medium text-gray-400">Tap to add date</p>
-        </div>
-        
-        {/* Travellers & Class */}
-        <div className="p-4 border-l border-gray-200 cursor-pointer hover:bg-gray-50 transition">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-xs text-gray-500 uppercase tracking-wide">Travellers & Class</p>
-            <ChevronDown className="w-4 h-4 text-[#2276E3]" />
-          </div>
-          <p className="text-lg font-medium text-gray-900">1 Traveller</p>
-          <p className="text-sm text-gray-600">Economy</p>
-        </div>
-        </div>
-        </div>
 
+          {/* To */}
+          <div className="p-4 border-l border-gray-200 cursor-pointer hover:bg-gray-50 transition">
+            <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">
+              To
+            </p>
+            <p className="text-2xl font-bold text-gray-900">Bengaluru</p>
+            <p className="text-sm text-gray-600">
+              BLR, Kempegowda International Airport
+            </p>
+          </div>
+
+          {/* Departure */}
+          <div className="p-4 border-l border-gray-200 cursor-pointer hover:bg-gray-50 transition">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs text-gray-500 uppercase tracking-wide">
+                Departure
+              </p>
+              <ChevronDown className="w-4 h-4 text-[#2276E3]" />
+            </div>
+            <p className="text-2xl font-bold text-gray-900">2 Jul 26</p>
+            <p className="text-sm text-gray-600">Monday</p>
+          </div>
+
+          {/* Return */}
+          <div className="p-4 border-l border-gray-200 cursor-pointer hover:bg-gray-50 transition">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs text-gray-500 uppercase tracking-wide">
+                Return
+              </p>
+              <ChevronDown className="w-4 h-4 text-[#2276E3]" />
+            </div>
+            <p className="text-lg font-medium text-gray-400">Tap to add date</p>
+          </div>
+
+          {/* Travellers & Class */}
+          <div className="p-4 border-l border-gray-200 cursor-pointer hover:bg-gray-50 transition">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs text-gray-500 uppercase tracking-wide">
+                Travellers & Class
+              </p>
+              <ChevronDown className="w-4 h-4 text-[#2276E3]" />
+            </div>
+            <p className="text-lg font-medium text-gray-900">1 Traveller</p>
+            <p className="text-sm text-gray-600">Economy</p>
+          </div>
+        </div>
+      </div>
     </>
   );
 };

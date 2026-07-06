@@ -56,7 +56,6 @@ export default function Header() {
         <div className=" md:hidden px-4 pb-4 flex flex-col items-center gap-4">
           {menu.map((item, index) => {
             const Icon = item.icon;
-
             return (
               <NavLink
                 key={index}

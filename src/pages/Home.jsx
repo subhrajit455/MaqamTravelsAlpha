@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useSelector, useDispatch } from "react-redux";
 import { IoLogoWhatsapp } from "react-icons/io";
+import Loginimage from "../assets/login.jpg";
 import { MdPhone } from "react-icons/md";
 import Namaj from "../assets/namaj.png";
 import Light from "../assets/light.gif";
@@ -7,7 +9,7 @@ import { MdVerified } from "react-icons/md";
 import { PiBowlFoodFill } from "react-icons/pi";
 import { FaEarthAmericas } from "react-icons/fa6";
 import { RiStarSmileFill } from "react-icons/ri";
-import { Search, User, X } from "lucide-react";
+import { Search, User, X, ArrowLeft, Phone, Eye } from "lucide-react";
 import image from "../assets/image.png";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -26,13 +28,17 @@ import Logo from "../assets/logo.png";
 import { useNavigate } from "react-router-dom";
 import { SearchAPI } from "../configs/api";
 import Login from "../components/Login";
+import VerificatinOtp from "../components/VerificationOtp";
+import ForgetPasswordPopModal from "../components/ForgetPasswordPopModal";
 import { BiSolidUpArrow } from "react-icons/bi";
 import Register from "../components/Register";
 import Forget from "../components/Forget";
 import ScrollToTop from "../components/ScrollToTop";
 import { toast } from "react-toastify";
 import { UserAPI } from "../configs/api";
+import { forgotPassword } from "../components/reducer/AuthSlice";
 const Home = () => {
+  const dispatch = useDispatch();
   const navigator = useNavigate();
   const scrollRef = useRef();
   const scrollRef2 = useRef();
@@ -46,7 +52,11 @@ const Home = () => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showRegisterPopup, setShowRegisterPopup] = useState(false);
   const [showForgetPopup, setShowForgetPopup] = useState(false);
+  const [showVerificationPopup, setShowVerificationPopup] = useState(false);
+  const [confirmpasswordchange, setConfirmpasswordchange] = useState(false);
+  const [reset_Token, setReset_Token] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showconfirmPassword, setShowconfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -268,8 +278,7 @@ const Home = () => {
   };
 
   const handleLogin = async () => {
-
-      console.log("Login data:", loginedUser);
+    console.log("Login data:", loginedUser);
 
     // Validate required fields
     if (!loginedUser.mobilenumber || !loginedUser.password) {
@@ -277,41 +286,41 @@ const Home = () => {
       return;
     }
 
-
     navigator("/");
     setShowLoginPopup(true);
     toast.success("Login successful!");
   };
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (email) {
-      setIsLoading(true);
-      try {
-        const payload = { email };
-        const response = await fetch(UserAPI.UserForgetPasswordApi, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
-        const result = await response.json();
-        if (result.success) {
-          toast.success("Reset link sent to your email!" || result.message);
-          setSubmitted(true);
-          setEmail("");
-          setIsLoading(false);
-        } else {
-          toast.error(
-            "Failed to send reset link. Please try again." || result.message,
-          );
-          setIsLoading(false);
-        }
-      } catch (error) {
-        toast.error("An error occurred. Please try again." || error.message);
-        setIsLoading(false);
-      }
-    }
+
+    // if (email) {
+    //   setIsLoading(true);
+    //   try {
+    //     const payload = { email };
+    //     const response = await fetch(UserAPI.UserForgetPasswordApi, {
+    //       method: "POST",
+    //       headers: {
+    //         "Content-Type": "application/json",
+    //       },
+    //       body: JSON.stringify(payload),
+    //     });
+    //     const result = await response.json();
+    //     if (result.success) {
+    //       toast.success("Reset link sent to your email!" || result.message);
+    //       setSubmitted(true);
+    //       setEmail("");
+    //       setIsLoading(false);
+    //     } else {
+    //       toast.error(
+    //         "Failed to send reset link. Please try again." || result.message,
+    //       );
+    //       setIsLoading(false);
+    //     }
+    //   } catch (error) {
+    //     toast.error("An error occurred. Please try again." || error.message);
+    //     setIsLoading(false);
+    //   }
+    // }
   };
 
   const heroSlides = [
@@ -785,6 +794,8 @@ const Home = () => {
             <button
               onClick={() => {
                 setShowForgetPopup(false);
+                setShowLoginPopup(true);
+                setShowVerificationPopup(false);
               }}
               className="absolute top-2 right-2 text-red-600 hover:text-red-700 z-10 bg-red-200 p-1 rounded-full cursor-pointer"
               aria-label="Close forget modal"
@@ -801,6 +812,82 @@ const Home = () => {
               setShowLoginPopup={setShowLoginPopup}
               setShowRegisterPopup={setShowRegisterPopup}
               setShowForgetPopup={setShowForgetPopup}
+              setShowVerificationPopup={setShowVerificationPopup}
+              setReset_Token={setReset_Token}
+            />
+          </div>
+        </div>
+      )}
+
+      {showVerificationPopup && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="relative bg-white  shadow-2xl w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto max-h-[90vh] overflow-auto">
+            <button
+              onClick={() => {
+                setShowVerificationPopup(false);
+                setShowForgetPopup(false);
+                setShowLoginPopup(true);
+
+                sessionStorage.setItem("loginPopupShown", "true");
+              }}
+              className="absolute top-2 right-2 text-red-600 hover:text-red-700 z-10 bg-red-200 p-1 rounded-full cursor-pointer"
+              aria-label="Close login modal"
+            >
+              <X size={15} />
+            </button>
+            <VerificatinOtp
+              handleSubmit={handleSubmit}
+              email={email}
+              setEmail={setEmail}
+              submitted={submitted}
+              setSubmitted={setSubmitted}
+              isLoading={isLoading}
+              setShowLoginPopup={setShowLoginPopup}
+              setShowRegisterPopup={setShowRegisterPopup}
+              setShowForgetPopup={setShowForgetPopup}
+              setShowVerificationPopup={setShowVerificationPopup}
+              reset_Token={reset_Token}
+              setReset_Token={setReset_Token}
+              setConfirmpasswordchange={setConfirmpasswordchange}
+            />
+          </div>
+        </div>
+      )}
+
+      {confirmpasswordchange && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="relative bg-white  shadow-2xl w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto max-h-[90vh] overflow-auto">
+            <button
+              onClick={() => {
+                setShowVerificationPopup(false);
+                setShowForgetPopup(false);
+                setShowLoginPopup(true);
+                setConfirmpasswordchange(false);
+                sessionStorage.setItem("loginPopupShown", "true");
+              }}
+              className="absolute top-2 right-2 text-red-600 hover:text-red-700 z-10 bg-red-200 p-1 rounded-full cursor-pointer"
+              aria-label="Close login modal"
+            >
+              <X size={15} />
+            </button>
+            <ForgetPasswordPopModal
+              handleSubmit={handleSubmit}
+              email={email}
+              setEmail={setEmail}
+              submitted={submitted}
+              setSubmitted={setSubmitted}
+              isLoading={isLoading}
+              setShowLoginPopup={setShowLoginPopup}
+              setShowRegisterPopup={setShowRegisterPopup}
+              setShowForgetPopup={setShowForgetPopup}
+              setShowVerificationPopup={setShowVerificationPopup}
+              reset_Token={reset_Token}
+              setReset_Token={setReset_Token}
+              setConfirmpasswordchange={setConfirmpasswordchange}
+              showPassword={showPassword}
+              setShowPassword={setShowPassword}
+              showconfirmPassword={showconfirmPassword}
+              setShowconfirmPassword={setShowconfirmPassword}
             />
           </div>
         </div>

@@ -1,51 +1,35 @@
-import React from "react";
-import { Phone, ArrowLeft } from "lucide-react";
-import { useForm } from "react-hook-form";
 import Loginimage from "../assets/login.jpg";
+import { Phone, ArrowLeft, Ticket } from "lucide-react";
 import { useSelector, useDispatch } from "react-redux";
-import { forgotPassword } from "./reducer/AuthSlice";
-import { toast } from "react-toastify";
-const Forget = ({
+import { useForm } from "react-hook-form";
+const VerificstionOtp = ({
   setShowLoginPopup,
+  setShowRegisterPopup,
   setShowForgetPopup,
   setShowVerificationPopup,
-  setShowRegisterPopup,
+  setConfirmpasswordchange,
+  setShowPassword,
+  showPassword,
+  setLoginUser,
+  loginedUser,
+  handleLogin,
   isLoading,
-  email,
-  setEmail,
   submitted,
   setSubmitted,
-  setReset_Token,
-  // handleSubmit,
+  reset_Token,
 }) => {
   const dispatch = useDispatch();
+
   const {
-    register,
     handleSubmit,
+    register,
     formState: { errors },
   } = useForm();
 
   const onSubmit = (data) => {
-    const { phone } = data;
-    dispatch(forgotPassword(phone)).then((response) => {
-      console.log("response===", response);
-
-      const reset_token = response?.payload?.data?.data?.resetToken;
-      if (response.payload.status === 200 && reset_token) {
-        toast.success(response.payload.data.message);
-        console.log("response!", response?.payload?.data?.data?.resetToken);
-        setShowVerificationPopup(true);
-        // setShowLoginPopup(true);
-        setReset_Token(response?.payload?.data?.data?.resetToken);
-      } else if (
-        response.payload.status === 401 ||
-        response.payload.status === 409
-      ) {
-        toast.error(response.payload.data.message);
-      }
-    });
+    console.log("data", data);
+    setConfirmpasswordchange(true);
   };
-
   return (
     <div className="flex items-center justify-center bg-blue-100 font-poppins min-h-0">
       <div className="w-full max-w-6xl bg-white  overflow-hidden shadow-2xl grid grid-cols-1 md:grid-cols-2">
@@ -71,6 +55,7 @@ const Forget = ({
           {/* Back Button */}
           <button
             onClick={() => {
+              setShowVerificationPopup(false);
               setShowForgetPopup(false);
               setShowLoginPopup(false);
             }}
@@ -81,36 +66,32 @@ const Forget = ({
           </button>
 
           <h2 className="text-3xl sm:text-4xl font-bold text-teal-600 text-center">
-            Reset Password
+            Otp Verification
           </h2>
 
           <p className="text-center text-gray-500 mt-2 mb-8">
-            Enter your mobile number and we'll send you a otp to forget your
-            password
+            Enter your reset token for otp Verification
           </p>
 
           {!submitted ? (
             <form onSubmit={handleSubmit(onSubmit)}>
               {/* EMAIL INPUT */}
               <div className="mb-6 relative">
-                <Phone
+                <Ticket
                   className="absolute left-3 top-4 text-teal-400"
                   size={18}
                 />
                 <input
-                  type="number"
-                  placeholder="Enter your mobile number"
-                  // value={email}
-                  // onChange={(e) => setEmail(e.target.value)}
-                  // required
-                  {...register("phone", {
-                    required: "Mobile Number Required",
+                  type="text"
+                  placeholder="Enter your reset token"
+                  {...register("reset_token", {
+                    required: "Reset Token Required",
                   })}
                   className="w-full pl-10 pr-4 py-3 border border-teal-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 placeholder:text-teal-400"
                 />
-                {errors?.phone && (
+                {errors?.reset_token && (
                   <p className="text-red-500 text-sm py-2">
-                    {errors.phone.message}
+                    {errors.reset_token.message}
                   </p>
                 )}
               </div>
@@ -130,7 +111,7 @@ const Forget = ({
                   type="submit"
                   className="w-full bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-lg font-semibold cursor-pointer transition duration-200"
                 >
-                  Send OTP
+                  Verify
                 </button>
               )}
             </form>
@@ -161,7 +142,7 @@ const Forget = ({
               </p>
               <button
                 onClick={() => {
-                  setShowForgetPopup(false);
+                  setShowVerificationPopup(false);
                   setShowLoginPopup(false);
                 }}
                 className="w-full block bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-lg font-semibold cursor-pointer transition duration-200"
@@ -189,8 +170,10 @@ const Forget = ({
           )}
         </div>
       </div>
+
+      {}
     </div>
   );
 };
 
-export default Forget;
+export default VerificstionOtp;
