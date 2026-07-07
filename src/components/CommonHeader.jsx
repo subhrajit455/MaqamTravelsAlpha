@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Menu, X, User } from "lucide-react";
 import { BiSolidUpArrow } from "react-icons/bi";
 import { FaRobot } from "react-icons/fa";
@@ -9,12 +9,21 @@ import { RiHotelFill } from "react-icons/ri";
 import { BiSolidPlaneAlt } from "react-icons/bi";
 import Logo from "../assets/logo.png";
 import HeroBg from "../assets/heroimage.jpg";
+import image01 from "../assets/image01.jpg";
+import image02 from "../assets/image02.jpg";
+import image03 from "../assets/image03.jpg";
+import image04 from "../assets/image04.jpg";
+import image05 from "../assets/image05.jpg";
+
+const heroImages = [image01, image02, image03, image04];
 
 const CommonHeader = ({ title }) => {
   const navigator = useNavigate();
   const [open, setOpen] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showMobileUserDropdown, setShowMobileUserDropdown] = useState(false);
+  const [currentImage, setCurrentImage] = useState(0);
+  const [current, setCurrent] = useState(0);
 
   const menu = [
     { name: "Home", icon: GoHomeFill, href: "/" },
@@ -24,11 +33,38 @@ const CommonHeader = ({ title }) => {
     // { name: "Ai Tour Planner", icon: FaRobot, href: "/ai-tour-planner" },
   ];
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrent((prev) => (prev + 1) % heroImages.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div
       className="relative h-[420px] bg-cover bg-center flex flex-col items-center font-poppins"
-      style={{ backgroundImage: `url(${HeroBg})` }}
+      // style={{ backgroundImage: `url(${heroImages[currentImage]})` }}
     >
+      <div className="absolute inset-0 overflow-hidden">
+        <div
+          className="flex h-full transition-transform duration-500 ease-in-out"
+          style={{
+            width: `${heroImages.length * 100}%`,
+            transform: `translateX(-${current * (100 / heroImages.length)}%)`,
+          }}
+        >
+          {heroImages.map((img, i) => (
+            <img
+              key={i}
+              src={img}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          ))}
+        </div>
+
+        <div className="absolute inset-0 bg-black/40" />
+      </div>
       {/* Overlay */}
       <div className="absolute inset-0 bg-black/40"></div>
 
@@ -201,11 +237,11 @@ const CommonHeader = ({ title }) => {
       )}
 
       {/* Title */}
-      <div className="relative z-10 flex flex-1 items-center justify-center px-6">
+      {/* <div className="relative z-10 flex flex-1 items-center justify-center px-6">
         <h1 className="text-white text-3xl md:text-4xl lg:text-5xl font-bold text-center">
           Choose Your Dream {title}
         </h1>
-      </div>
+      </div> */}
     </div>
   );
 };

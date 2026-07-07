@@ -25,7 +25,10 @@ const App = () => {
         <Route path="/registration" element={<Registration />} />
         <Route path="/details/:id" element={<HotelDetails />} />
         <Route path="/booking-details/:id" element={<HotelBookingDetails />} />
-        <Route path="/selected-room-information" element={<SelectedRoomInformation />} />
+        <Route
+          path="/selected-room-information"
+          element={<SelectedRoomInformation />}
+        />
         <Route path="/profile" element={<Profile />} />
         <Route path="/hotel" element={<Hotel />} />
         <Route path="/flight" element={<Flight />} />
@@ -37,7 +40,12 @@ const App = () => {
         {/* <Route path ="/forgetpassword" element={<Forget />} /> */}
         <Route path="*" element={<Error />} />
       </Routes>
-      <Footer />
+
+      <div className="relative">
+        <div className="absolute top-100  w-full">
+          <Footer />
+        </div>
+      </div>
     </>
   );
 };
