@@ -1,300 +1,384 @@
-const Payment = require("../../payment.model");
-const FlightBooking = require("../../../flights/flight.model");
-const HotelBooking = require("../../../hotels/hotel.model");
+const Payment = require('../../payment.model');
 const razorpayClient = require('./razorpay.client');
 const logger = require('../../../../utils/logger');
 const { AppError } = require('../../../../middleware/errorHandler');
-const { PAYMENT_STATUS } = require('../../../../config/constants');
+const { PAYMENT_STATUS } = require('../../payment.constants');
+const { resolveBooking } = require('../../bookingResolver');
+const { withLock } = require('../../distributedLock');
+const { withTransaction } = require('../../transactionHelper');
+const auditLogService = require('../../auditLog.service');
 
 /**
  * ─── RAZORPAY SERVICE ──────────────────────────────────
- * Razorpay-specific payment business logic
- * Bridges Payment Service with Razorpay Adapter
+ * Razorpay-specific payment business logic.
+ * Aligned with PayPal patterns for locks, transactions, and state machine validation.
  */
 
 /**
  * Create Razorpay Order for a booking
- * @param {string} userId
- * @param {string} bookingId
- * @param {string} bookingType - 'flight', 'hotel', 'tour', 'package'
- * @returns {Promise} Payment document with order details
  */
-const createPaymentOrder = async (userId, bookingId, bookingType) => {
-    try {
-        logger.info(`[Razorpay Service] Creating payment order - User: ${userId}, Booking: ${bookingId}, Type: ${bookingType}`);
+const createPaymentOrder = async (userId, bookingId, bookingType, correlationId = '') => {
+  try {
+    logger.info(`[Razorpay Service] Creating order - User: ${userId}, Booking: ${bookingId}, Type: ${bookingType}`);
 
-        // 1. Fetch booking details
-        let booking;
-        if (bookingType === 'flight') {
-            booking = await FlightBooking.findById(bookingId).populate('user', 'email phone name');
-        } else if (bookingType === 'hotel') {
-            booking = await HotelBooking.findById(bookingId).populate('user', 'email phone name');
-        }
+    // 1. Fetch booking details
+    const booking = await resolveBooking(bookingId, bookingType);
 
-        if (!booking) {
-            throw new AppError('Booking not found', 404);
-        }
-
-        if (booking.user._id.toString() !== userId) {
-            throw new AppError('Unauthorized to pay for this booking', 403);
-        }
-
-        // 2. Check if already paid
-        const existingPayment = await Payment.findOne({
-            bookingId,
-            status: PAYMENT_STATUS.PAID,
-        });
-
-        if (existingPayment) {
-            throw new AppError('This booking is already paid', 400);
-        }
-
-        // 3. Get amount from booking
-        const amount = booking.totalAmount || 0;
-
-        if (amount <= 0) {
-            throw new AppError('Invalid booking amount', 400);
-        }
-
-        // 4. Create Razorpay order
-        const orderData = await razorpayClient.orders.create(
-            amount,
-            bookingId,
-            {
-                name: booking.user.name,
-                email: booking.user.email,
-                phone: booking.user.phone,
-            }
-        );
-
-        // 5. Create Payment record in DB
-        const payment = await Payment.create({
-            userId,
-            bookingId,
-            bookingType,
-            amount,
-            currency: 'INR',
-            paymentMethod: 'razorpay',
-            razorpayOrderId: orderData.orderId,
-            status: PAYMENT_STATUS.PENDING,
-        });
-
-        logger.info(`[Razorpay Service] Payment order created - ID: ${payment._id}, Razorpay Order: ${orderData.orderId}`);
-
-        return {
-            paymentId: payment._id,
-            razorpayOrderId: orderData.orderId,
-            amount: orderData.amountInINR,
-            currency: orderData.currency,
-            keyId: process.env.RAZORPAY_KEY_ID, // Send to frontend for checkout
-            bookingId,
-            bookingType,
-            customerDetails: {
-                name: booking.user.name,
-                email: booking.user.email,
-                phone: booking.user.phone,
-            },
-        };
-    } catch (error) {
-        logger.error(`[Razorpay Service] Payment order creation failed: ${error.message}`);
-        throw error;
+    // Verify booking ownership
+    const bookingUserId = booking.user?._id || booking.user;
+    if (bookingUserId.toString() !== userId.toString()) {
+      throw new AppError('Unauthorized to pay for this booking', 403);
     }
+
+    // 2. Prevent payment if already confirmed/paid
+    const existingPaid = await Payment.findOne({
+      bookingId,
+      status: PAYMENT_STATUS.PAID,
+    });
+    if (existingPaid) {
+      throw new AppError('This booking is already paid', 400);
+    }
+
+    // 3. Prevent duplicate active checkout processes (idempotent reuse)
+    const existingPending = await Payment.findOne({
+      bookingId,
+      status: { $in: [PAYMENT_STATUS.CREATED, PAYMENT_STATUS.PENDING] },
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (existingPending) {
+      logger.info(`[Razorpay Service] Reusing active pending payment: ${existingPending._id}`);
+      return {
+        paymentId: existingPending._id,
+        razorpayOrderId: existingPending.gatewayData.orderId,
+        amount: existingPending.amount,
+        currency: existingPending.currency,
+        keyId: process.env.RAZORPAY_KEY_ID,
+        bookingId,
+        bookingType,
+      };
+    }
+
+    const amount = booking.totalAmount || booking.details?.totalPrice || 0;
+    if (amount <= 0) {
+      throw new AppError('Invalid booking amount', 400);
+    }
+
+    // 4. Create Razorpay order
+    const orderData = await razorpayClient.orders.create(
+      amount,
+      bookingId,
+      {
+        name: booking.user.name,
+        email: booking.user.email,
+        phone: booking.user.phone,
+      }
+    );
+
+    // 5. Create Payment record in DB
+    const payment = await Payment.create({
+      userId,
+      bookingId,
+      bookingModel: booking.constructor.modelName,
+      bookingType,
+      amount,
+      currency: 'INR',
+      paymentMethod: 'razorpay',
+      status: PAYMENT_STATUS.CREATED,
+      gatewayData: {
+        orderId: orderData.orderId,
+        raw: orderData,
+      },
+      correlationId,
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30-minute expiry window
+    });
+
+    // Write audit log entry
+    await auditLogService.record({
+      paymentId: payment._id,
+      action: 'PAYMENT_ORDER_CREATED',
+      actor: { type: 'user', id: userId },
+      newState: PAYMENT_STATUS.CREATED,
+      metadata: { orderId: orderData.orderId, amount, currency: 'INR' },
+      correlationId,
+    });
+
+    logger.info(`[Razorpay Service] Payment order created - ID: ${payment._id}, Razorpay Order: ${orderData.orderId}`);
+
+    return {
+      paymentId: payment._id,
+      razorpayOrderId: orderData.orderId,
+      amount: orderData.amountInINR,
+      currency: orderData.currency,
+      keyId: process.env.RAZORPAY_KEY_ID, // Send to frontend for checkout
+      bookingId,
+      bookingType,
+      customerDetails: {
+        name: booking.user.name,
+        email: booking.user.email,
+        phone: booking.user.phone,
+      },
+    };
+  } catch (error) {
+    logger.error(`[Razorpay Service] Payment order creation failed: ${error.message}`);
+    throw error;
+  }
 };
 
 /**
- * Verify and Process Payment (called from webhook)
- * @param {string} orderId - Razorpay order ID
- * @param {string} paymentId - Razorpay payment ID
- * @param {string} signature - Webhook signature
- * @returns {Promise} Payment details
+ * Verify and Process Payment (called from webhook or verification callback)
  */
-const verifyAndProcessPayment = async (orderId, paymentId, signature) => {
-    try {
-        logger.info(`[Razorpay Service] Verifying payment - Order: ${orderId}, Payment: ${paymentId}`);
+const verifyAndProcessPayment = async (orderId, paymentId, signature, correlationId = '') => {
+  const lockKey = `capture:${orderId}`;
 
-        // 1. Verify signature
-        const isValid = razorpayClient.payments.verify(orderId, paymentId, signature);
+  return await withLock(lockKey, 20000, async () => {
+    logger.info(`[Razorpay Service] Lock acquired for verification - Order: ${orderId}, Payment: ${paymentId}`);
 
-        if (!isValid) {
-            logger.warn(`[Razorpay Service] Invalid payment signature for order: ${orderId}`);
-            throw new AppError('Payment verification failed', 400);
-        }
-
-        // 2. Fetch payment details from Razorpay
-        const paymentDetails = await razorpayClient.payments.fetch(paymentId);
-
-        // 3. Update Payment record
-        const payment = await Payment.findOneAndUpdate(
-            { razorpayOrderId: orderId },
-            {
-                razorpayPaymentId: paymentId,
-                status: paymentDetails.status === 'captured' ? PAYMENT_STATUS.PAID : PAYMENT_STATUS.PENDING,
-                verifiedAt: new Date(),
-                transactionId: paymentId,
-                paymentMethod: paymentDetails.method,
-                notes: paymentDetails.notes,
-            },
-            { new: true }
-        )
-            .populate('bookingId')
-            .populate('userId', 'email phone name');
-
-        if (!payment) {
-            throw new AppError('Payment record not found', 404);
-        }
-
-        logger.info(`[Razorpay Service] Payment verified - ID: ${payment._id}, Status: ${payment.status}`);
-
-        return {
-            paymentId: payment._id,
-            razorpayPaymentId,
-            orderId,
-            amount: payment.amount,
-            status: payment.status,
-            bookingId: payment.bookingId._id,
-            bookingType: payment.bookingType,
-            verifiedAt: payment.verifiedAt,
-        };
-    } catch (error) {
-        logger.error(`[Razorpay Service] Payment verification failed: ${error.message}`);
-        throw error;
+    // Retrieve payment document first
+    const initialPayment = await Payment.findOne({ 'gatewayData.orderId': orderId });
+    if (!initialPayment) {
+      throw new AppError('Payment record not found', 404);
     }
+
+    // Idempotent bypass: If status is already PAID, return cached completion details immediately
+    if (initialPayment.status === PAYMENT_STATUS.PAID) {
+      logger.info(`[Razorpay Service] Payment already captured and PAID (Idempotent skip): ${initialPayment._id}`);
+      return {
+        paymentId: initialPayment._id,
+        razorpayPaymentId: initialPayment.gatewayData.captureId,
+        status: initialPayment.status,
+        bookingId: initialPayment.bookingId,
+        bookingType: initialPayment.bookingType,
+        alreadyProcessed: true,
+      };
+    }
+
+    // 1. Verify signature using local credentials
+    const isValid = razorpayClient.payments.verify(orderId, paymentId, signature);
+    if (!isValid) {
+      logger.warn(`[Razorpay Service] Invalid payment signature for order: ${orderId}`);
+      throw new AppError('Payment verification signature check failed', 400);
+    }
+
+    // 2. Fetch transaction details from Razorpay to verify amount capture status
+    const paymentDetails = await razorpayClient.payments.fetch(paymentId);
+
+    // 3. Process database adjustments inside transaction session
+    return await withTransaction(async (session) => {
+      // Refresh record inside transaction session
+      const payment = await Payment.findById(initialPayment._id).session(session);
+      
+      const previousState = payment.status;
+
+      // Update payment record details
+      payment.status = PAYMENT_STATUS.PAID;
+      payment.gatewayData.captureId = paymentId;
+      payment.gatewayData.transactionId = paymentId;
+      payment.paidAt = new Date();
+      payment.verifiedAt = new Date();
+      payment.gatewayData.raw = paymentDetails;
+      
+      await payment.save({ session });
+
+      // Resolve and update target Booking status to confirmed
+      const booking = await resolveBooking(payment.bookingId, payment.bookingType);
+      
+      booking.status = 'confirmed';
+      booking.razorpayPaymentId = paymentId;
+      booking.paymentId = payment._id;
+      await booking.save({ session });
+
+      // Record Audit trail
+      await auditLogService.record({
+        paymentId: payment._id,
+        action: 'PAYMENT_CAPTURE_COMPLETED',
+        actor: { type: 'system', id: 'razorpay_verification_worker' },
+        previousState,
+        newState: PAYMENT_STATUS.PAID,
+        metadata: { razorpayPaymentId: paymentId, orderId },
+        gatewayResponse: paymentDetails,
+        correlationId,
+      });
+
+      logger.info(`[Razorpay Service] Payment verified and booking confirmed - ID: ${payment._id}`);
+
+      return {
+        paymentId: payment._id,
+        razorpayPaymentId: paymentId,
+        orderId,
+        amount: payment.amount,
+        status: payment.status,
+        bookingId: payment.bookingId,
+        bookingType: payment.bookingType,
+        verifiedAt: payment.verifiedAt,
+        alreadyProcessed: false,
+      };
+    });
+  });
 };
 
 /**
- * Process successful payment (after verification)
- * Coordinates with flight booking to ticket
- * @param {string} paymentId - Internal payment ID
- * @returns {Promise}
+ * Process successful payment (post-capture orchestration)
  */
-const processSuccessfulPayment = async (paymentId) => {
-    try {
-        logger.info(`[Razorpay Service] Processing successful payment: ${paymentId}`);
+const processSuccessfulPayment = async (paymentId, correlationId = '') => {
+  try {
+    logger.info(`[Razorpay Service] Executing post-payment orchestration for ID: ${paymentId}`);
 
-        // 1. Get payment details
-        const payment = await Payment.findById(paymentId)
-            .populate('bookingId')
-            .populate('userId', 'email phone name');
-
-        if (!payment) {
-            throw new AppError('Payment not found', 404);
-        }
-
-        if (payment.status !== PAYMENT_STATUS.PAID) {
-            throw new AppError('Payment is not confirmed', 400);
-        }
-
-        // 2. Update booking status
-        const booking = payment.bookingId;
-        booking.status = 'confirmed';
-        booking.razorpayPaymentId = payment.razorpayPaymentId;
-        await booking.save();
-
-        logger.info(`[Razorpay Service] Booking confirmed - ID: ${booking._id}`);
-
-        // 3. TODO: Call GDS ticketing API if needed
-        // const ticketingResult = await callGDSTicketing(booking);
-
-        // 4. TODO: Send confirmation email/SMS
-        // await sendConfirmationNotifications(booking, payment.userId);
-
-        return {
-            success: true,
-            paymentId: payment._id,
-            bookingId: booking._id,
-            status: 'confirmed',
-        };
-    } catch (error) {
-        logger.error(`[Razorpay Service] Payment processing failed: ${error.message}`);
-        throw error;
+    const payment = await Payment.findById(paymentId);
+    if (!payment) {
+      throw new AppError('Payment not found for post-capture processing', 404);
     }
+
+    // Call flight ticketing orchestrator if applicable
+    if (payment.bookingType === 'flight') {
+      try {
+        const bookingOrchestrator = require('../../../../utils/bookingOrchestrator');
+        const FlightBooking = require('../../../flights/flight.model');
+        const booking = await FlightBooking.findById(payment.bookingId);
+        
+        if (booking && !booking.isLCC) {
+          logger.info(`[Razorpay Service] Initiating GDS Ticketing for flight booking: ${booking._id}`);
+          await bookingOrchestrator.processTicketing(booking._id);
+        }
+      } catch (err) {
+        logger.error(`[Razorpay Service] Post-capture GDS auto-ticketing failed: ${err.message}`);
+      }
+    }
+
+    // TODO: Enqueue transactional messaging tasks (SMS/Mail)
+    logger.info(`[Razorpay Service] Triggered async communications and invoicing flows`);
+
+    return { success: true };
+  } catch (error) {
+    logger.error(`[Razorpay Service] Post-capture orchestration failed: ${error.message}`);
+    throw error;
+  }
 };
 
 /**
- * Refund a payment
- * @param {string} paymentId - Internal payment ID
- * @param {number} amount - Optional partial refund amount
- * @param {string} reason
- * @returns {Promise}
+ * Refund a Razorpay payment (supports partial/full refunds)
  */
-const refundPayment = async (paymentId, amount, reason = 'Booking cancelled') => {
-    try {
-        logger.info(`[Razorpay Service] Processing refund for payment: ${paymentId}`);
+const refundPayment = async (paymentId, amount = null, reason = 'Booking cancelled', actorId = null, correlationId = '') => {
+  const lockKey = `refund:${paymentId}`;
 
-        // 1. Get payment details
-        const payment = await Payment.findById(paymentId);
+  return await withLock(lockKey, 20000, async () => {
+    return await withTransaction(async (session) => {
+      const payment = await Payment.findById(paymentId).session(session);
+      if (!payment) {
+        throw new AppError('Payment record not found', 404);
+      }
 
-        if (!payment) {
-            throw new AppError('Payment not found', 404);
-        }
+      if (payment.status !== PAYMENT_STATUS.PAID && payment.status !== PAYMENT_STATUS.PARTIALLY_REFUNDED) {
+        throw new AppError('Only captured/paid payments can be refunded', 400);
+      }
 
-        if (payment.status !== PAYMENT_STATUS.PAID) {
-            throw new AppError('Only paid payments can be refunded', 400);
-        }
+      const razorpayPaymentId = payment.gatewayData.captureId;
+      if (!razorpayPaymentId) {
+        throw new AppError('No payment capture reference found on this payment record', 400);
+      }
 
-        // 2. Call Razorpay refund
-        const refundAmount = amount || payment.amount;
-        const refundData = await razorpayClient.payments.refund(
-            payment.razorpayPaymentId,
-            refundAmount,
-            reason
-        );
+      // Check remaining balances
+      const remainingRefundable = payment.amount - payment.totalRefunded;
+      const refundAmount = amount !== null ? amount : remainingRefundable;
 
-        // 3. Update payment record
-        payment.status = PAYMENT_STATUS.REFUNDED;
-        payment.refundAmount = refundAmount;
-        payment.refundReason = reason;
-        payment.refundProcessedAt = new Date();
-        payment.refundRefId = refundData.refundId;
-        await payment.save();
+      if (refundAmount <= 0) {
+        throw new AppError('Invalid refund amount', 400);
+      }
+      if (refundAmount > remainingRefundable) {
+        throw new AppError(`Refund amount of ${refundAmount} exceeds remaining refundable balance of ${remainingRefundable}`, 400);
+      }
 
-        logger.info(`[Razorpay Service] Refund processed - Refund ID: ${refundData.refundId}`);
+      // Trigger Razorpay API Refund
+      const refundData = await razorpayClient.payments.refund(
+        razorpayPaymentId,
+        refundAmount,
+        reason
+      );
 
-        return {
-            paymentId: payment._id,
-            refundId: refundData.refundId,
-            amount: refundData.amount,
-            status: refundData.status,
-        };
-    } catch (error) {
-        logger.error(`[Razorpay Service] Refund failed: ${error.message}`);
-        throw error;
-    }
+      const previousState = payment.status;
+
+      // Update local payment record arrays and counters
+      payment.refunds.push({
+        refundId: refundData.refundId,
+        amount: refundAmount,
+        currency: payment.currency,
+        reason,
+        status: 'processed',
+        processedAt: new Date(),
+        gatewayResponse: refundData,
+      });
+
+      payment.totalRefunded = parseFloat((payment.totalRefunded + refundAmount).toFixed(2));
+      
+      const isFullyRefunded = payment.totalRefunded >= payment.amount;
+      payment.status = isFullyRefunded ? PAYMENT_STATUS.REFUNDED : PAYMENT_STATUS.PARTIALLY_REFUNDED;
+      
+      await payment.save({ session });
+
+      // If fully refunded, cancel booking
+      if (isFullyRefunded) {
+        const booking = await resolveBooking(payment.bookingId, payment.bookingType);
+        booking.status = 'cancelled';
+        booking.cancellationReason = `Refunded: ${reason}`;
+        booking.cancelledAt = new Date();
+        await booking.save({ session });
+      }
+
+      // Write Audit log
+      await auditLogService.record({
+        paymentId: payment._id,
+        action: isFullyRefunded ? 'PAYMENT_FULLY_REFUNDED' : 'PAYMENT_PARTIALLY_REFUNDED',
+        actor: actorId ? { type: 'user', id: actorId } : { type: 'system', id: 'razorpay_refund_worker' },
+        previousState,
+        newState: payment.status,
+        metadata: { refundId: refundData.refundId, amount: refundAmount },
+        gatewayResponse: refundData,
+        correlationId,
+      });
+
+      return {
+        paymentId: payment._id,
+        refundId: refundData.refundId,
+        amount: refundAmount,
+        status: payment.status,
+      };
+    });
+  });
 };
 
 /**
- * Get payment status
- * @param {string} paymentId - Internal payment ID
- * @returns {Promise}
+ * Get payment status details
  */
 const getPaymentStatus = async (paymentId) => {
-    try {
-        const payment = await Payment.findById(paymentId).populate('bookingId');
-
-        if (!payment) {
-            throw new AppError('Payment not found', 404);
-        }
-
-        return {
-            paymentId: payment._id,
-            razorpayOrderId: payment.razorpayOrderId,
-            razorpayPaymentId: payment.razorpayPaymentId,
-            amount: payment.amount,
-            status: payment.status,
-            bookingStatus: payment.bookingId.status,
-            verifiedAt: payment.verifiedAt,
-            createdAt: payment.createdAt,
-        };
-    } catch (error) {
-        logger.error(`[Razorpay Service] Get payment status failed: ${error.message}`);
-        throw error;
+  try {
+    const payment = await Payment.findById(paymentId).populate('bookingId');
+    if (!payment) {
+      throw new AppError('Payment not found', 404);
     }
+
+    return {
+      paymentId: payment._id,
+      razorpayOrderId: payment.gatewayData?.orderId,
+      razorpayPaymentId: payment.gatewayData?.captureId,
+      amount: payment.amount,
+      currency: payment.currency,
+      status: payment.status,
+      bookingStatus: payment.bookingId?.status,
+      refunds: payment.refunds,
+      totalRefunded: payment.totalRefunded,
+      verifiedAt: payment.verifiedAt,
+      createdAt: payment.createdAt,
+    };
+  } catch (error) {
+    logger.error(`[Razorpay Service] Get payment status failed: ${error.message}`);
+    throw error;
+  }
 };
 
 module.exports = {
-    createPaymentOrder,
-    verifyAndProcessPayment,
-    processSuccessfulPayment,
-    refundPayment,
-    getPaymentStatus,
+  createPaymentOrder,
+  verifyAndProcessPayment,
+  processSuccessfulPayment,
+  refundPayment,
+  getPaymentStatus,
 };

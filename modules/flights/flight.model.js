@@ -3,17 +3,21 @@ const { Schema } = mongoose;
 
 const PassengerSchema = new Schema(
   {
-    travellerId: { type: Schema.Types.ObjectId, ref: "Traveller", required: true },
+    travellerId: {
+      type: Schema.Types.ObjectId,
+      ref: "Traveller",
+      required: true,
+    },
     isLeadPax: { type: Boolean, default: false },
 
     // Filled in only after Book/TicketGDS response, or the webhook
-    paxId: Number,                       // SRDV's PaxId (GDS responses)
+    paxId: Number, // SRDV's PaxId (GDS responses)
     ticketNumber: { type: String, default: "" },
     ticketId: String,
     ticketIssueDate: Date,
-    ticketStatus: String,                 // e.g. "OK"
+    ticketStatus: String, // e.g. "OK"
   },
-  { _id: false }
+  { _id: false },
 );
 
 const GstDetailsSchema = new Schema(
@@ -25,7 +29,7 @@ const GstDetailsSchema = new Schema(
     companyEmail: String,
     companyContactNumber: String,
   },
-  { _id: false }
+  { _id: false },
 );
 
 const FlightBookingSchema = new Schema(
@@ -39,19 +43,17 @@ const FlightBookingSchema = new Schema(
     resultIndex: String,
     isLCC: { type: Boolean, required: true },
 
-    fareSnapshot: Schema.Types.Mixed,     // Fare object from FareQuote, sent as-is to Book
-    totalAmount: Number,                  // your price incl. markup
+    fareSnapshot: Schema.Types.Mixed, // Fare object from FareQuote, sent as-is to Book
+    totalAmount: Number, // your price incl. markup
     markupAmount: Number,
 
-    isGstMandatory: Boolean,              // recorded from FareQuote response
-    gstDetails: GstDetailsSchema,         // optional unless isGstMandatory was true
-
+    isGstMandatory: Boolean, // recorded from FareQuote response
+    gstDetails: GstDetailsSchema, // optional unless isGstMandatory was true
     // ---- Post-call: filled by Book response, or later by webhook/TicketGDS ----
     pnr: String,
     gdsPnr: String,
     srdvBookingId: { type: Number, index: true },
-    lastTicketDate: Date,                 // GDS hold only — ticketing deadline
-
+    lastTicketDate: Date, // GDS hold only — ticketing deadline
     status: {
       type: String,
       enum: ["initiated", "pending", "confirmed", "failed", "aborted"],
@@ -65,13 +67,12 @@ const FlightBookingSchema = new Schema(
 
     passengers: [PassengerSchema],
 
-    eTicketData: Schema.Types.Mixed,      // full FlightItinerary snapshot, for support/debugging
-
+    eTicketData: Schema.Types.Mixed, // full FlightItinerary snapshot, for support/debugging
     // ---- Payment ----
     razorpayOrderId: String,
     razorpayPaymentId: String,
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("FlightBooking", FlightBookingSchema);

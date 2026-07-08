@@ -32,4 +32,13 @@ const searchLimiter = rateLimit({
   handler,
 });
 
-module.exports = { apiLimiter, authLimiter, searchLimiter };
+// Payment limiter — prevent brute force or payment creation abuse
+const paymentLimiter = rateLimit({
+  windowMs:        1 * 60 * 1000, // 1 minute
+  max:             10,            // 10 payments per minute
+  standardHeaders: true,
+  legacyHeaders:   false,
+  handler,
+});
+
+module.exports = { apiLimiter, authLimiter, searchLimiter, paymentLimiter };

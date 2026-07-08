@@ -8,9 +8,9 @@ const logger = require('../../../../utils/logger');
 
 const client = {
     orders: {
-        create: async (amount, bookingId, customerDetails) => {
+        create: async (amount, bookingId, currency = 'USD', idempotencyKey = '') => {
             logger.info(`[PayPal] Creating order: ${bookingId}`);
-            return paypalAdapter.createOrder(amount, bookingId, customerDetails);
+            return paypalAdapter.createOrder(amount, bookingId, currency, idempotencyKey);
         },
 
         details: async (orderId) => {
@@ -18,16 +18,16 @@ const client = {
             return paypalAdapter.getPaymentDetails(orderId);
         },
 
-        capture: async (orderId, details) => {
+        capture: async (orderId, idempotencyKey = '') => {
             logger.info(`[PayPal] Capturing order: ${orderId}`);
-            return paypalAdapter.capturePayment(orderId, details);
+            return paypalAdapter.capturePayment(orderId, idempotencyKey);
         },
     },
 
     payments: {
-        refund: async (captureId, amount, reason) => {
+        refund: async (captureId, amount = null, currency = 'USD', reason = 'Booking cancelled', idempotencyKey = '') => {
             logger.info(`[PayPal] Refunding capture: ${captureId}`);
-            return paypalAdapter.refundPayment(captureId, amount, reason);
+            return paypalAdapter.refundPayment(captureId, amount, currency, reason, idempotencyKey);
         },
     },
 };

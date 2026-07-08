@@ -1,12 +1,14 @@
 const paypalService = require('./paypal.service');
 const Payment = require('../../payment.model');
-const { sendSuccess, sendCreated, sendBadRequest, sendNotFound } = require('../../../../utils/apiResponse');
-const { validationResult } = require('express-validator');
+const { sendSuccess, sendCreated, sendNotFound, sendForbidden } = require('../../../../utils/apiResponse');
 const logger = require('../../../../utils/logger');
+const { PAYMENT_STATUS } = require('../../payment.constants');
 
 /**
  * ─── PAYPAL PAYMENT CONTROLLER ───────────────────────
- * Endpoints for PayPal payment operations
+ * Handlers for incoming HTTP requests targeting PayPal checkout.
+ * Redundant validationResult checks are removed since the global `validate` 
+ * middleware handles Express-Validator rule failures.
  */
 
 /**
@@ -14,147 +16,139 @@ const logger = require('../../../../utils/logger');
  * Create a PayPal order for a booking
  */
 const createPaymentOrder = async (req, res, next) => {
-    try {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return sendBadRequest(res, 'Validation failed', errors.array());
-        }
+  try {
+    const userId = req.user?.id || req.user?._id;
+    const { bookingId, bookingType } = req.body;
+    const correlationId = req.correlationId;
 
-        const userId = req.user?.id;
-        const { bookingId, bookingType } = req.body;
+    logger.info(`[PayPal Controller] Creating payment order for user: ${userId}, booking: ${bookingId}`, { correlationId });
 
-        logger.info(`[PayPal Controller] Creating payment order for user: ${userId}, booking: ${bookingId}`);
+    const orderData = await paypalService.createPaymentOrder(userId, bookingId, bookingType, correlationId);
 
-        const orderData = await paypalService.createPaymentOrder(userId, bookingId, bookingType);
-
-        return sendCreated(res, {
-            message: 'PayPal order created successfully',
-            data: orderData,
-        });
-    } catch (error) {
-        next(error);
-    }
+    return sendCreated(res, orderData, 'PayPal order created successfully');
+  } catch (error) {
+    next(error);
+  }
 };
 
 /**
  * POST /api/v1/payments/paypal/capture
- * Capture an approved PayPal order
- * Called from frontend after user approves payment on PayPal
+ * Capture an approved PayPal order (called from frontend after user signs in/approves)
  */
 const capturePayment = async (req, res, next) => {
-    try {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return sendBadRequest(res, 'Validation failed', errors.array());
-        }
+  try {
+    const userId = req.user?.id || req.user?._id;
+    const { orderId } = req.body;
+    const correlationId = req.correlationId;
 
-        const { orderId } = req.body;
+    logger.info(`[PayPal Controller] Initiating capture for order: ${orderId}`, { correlationId });
 
-        logger.info(`[PayPal Controller] Capturing PayPal order: ${orderId}`);
+    // Capture payment and verify user ownership of the targeted booking
+    const captureData = await paypalService.captureAndVerifyPayment(orderId, userId, correlationId);
 
-        const captureData = await paypalService.captureAndVerifyPayment(orderId);
+    // Trigger asynchronous post-capture operations (e.g. ticketing, invoicing, notifications)
+    // Run asynchronously to return prompt responses to frontend
+    paypalService.processSuccessfulPayment(captureData.paymentId, correlationId)
+      .catch(err => logger.error(`[PayPal Controller] Post-capture process failed for payment ${captureData.paymentId}: ${err.message}`));
 
-        // Process successful payment
-        const result = await paypalService.processSuccessfulPayment(captureData.paymentId);
-
-        return sendSuccess(res, {
-            message: 'PayPal payment captured and processed successfully',
-            data: result,
-        });
-    } catch (error) {
-        next(error);
-    }
+    return sendSuccess(res, {
+      message: 'PayPal payment captured and processed successfully',
+      data: {
+        paymentId: captureData.paymentId,
+        paypalCaptureId: captureData.paypalCaptureId,
+        status: captureData.status,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 /**
  * GET /api/v1/payments/paypal/:paymentId
- * Get payment status
+ * Get payment status details
  */
 const getPaymentStatus = async (req, res, next) => {
-    try {
-        const { paymentId } = req.params;
-        const userId = req.user?.id;
+  try {
+    const { paymentId } = req.params;
+    const userId = req.user?.id || req.user?._id;
+    const correlationId = req.correlationId;
 
-        logger.info(`[PayPal Controller] Fetching payment status for payment: ${paymentId}`);
+    logger.info(`[PayPal Controller] Fetching payment status: ${paymentId}`, { correlationId });
 
-        const payment = await Payment.findById(paymentId);
-
-        if (!payment) {
-            return sendNotFound(res, 'Payment not found');
-        }
-
-        // Verify ownership
-        if (payment.userId.toString() !== userId) {
-            return res.status(403).json({ error: 'Unauthorized' });
-        }
-
-        return sendSuccess(res, {
-            message: 'Payment status retrieved',
-            data: {
-                paymentId: payment._id,
-                paypalOrderId: payment.paypalOrderId,
-                paypalCaptureId: payment.paypalCaptureId,
-                amount: payment.amount,
-                status: payment.status,
-                verifiedAt: payment.verifiedAt,
-                createdAt: payment.createdAt,
-            },
-        });
-    } catch (error) {
-        next(error);
+    const payment = await Payment.findById(paymentId);
+    if (!payment) {
+      return sendNotFound(res, 'Payment not found');
     }
+
+    // Access control: Ensure user owns this payment record or holds administrator privileges
+    const isOwner = payment.userId.toString() === userId.toString();
+    const isAdmin = ['admin', 'super_admin'].includes(req.user?.role);
+    
+    if (!isOwner && !isAdmin) {
+      return sendForbidden(res, 'Unauthorized access to this payment resource');
+    }
+
+    return sendSuccess(res, {
+      message: 'Payment details retrieved successfully',
+      data: {
+        paymentId: payment._id,
+        paypalOrderId: payment.gatewayData?.orderId,
+        paypalCaptureId: payment.gatewayData?.captureId,
+        amount: payment.amount,
+        currency: payment.currency,
+        status: payment.status,
+        refunds: payment.refunds,
+        totalRefunded: payment.totalRefunded,
+        verifiedAt: payment.verifiedAt,
+        paidAt: payment.paidAt,
+        createdAt: payment.createdAt,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 /**
  * POST /api/v1/payments/paypal/:paymentId/refund
- * Refund a PayPal payment
+ * Refund a PayPal payment (finance or admin only, or owner if allowed)
  */
- 
 const refundPayment = async (req, res, next) => {
-    try {
-        const errors = validationResult(req);
-        if (!errors.isEmpty()) {
-            return sendBadRequest(res, 'Validation failed', errors.array());
-        }
+  try {
+    const { paymentId } = req.params;
+    const { amount, reason } = req.body;
+    const userId = req.user?.id || req.user?._id;
+    const correlationId = req.correlationId;
 
-        const { paymentId } = req.params;
-        const { amount, reason } = req.body;
-        const userId = req.user?.id;
+    logger.info(`[PayPal Controller] Processing refund request for payment: ${paymentId}`, { correlationId });
 
-        logger.info(`[PayPal Controller] Processing refund for payment: ${paymentId}`);
-
-        // Verify ownership first
-        const payment = await Payment.findById(paymentId);
-
-        if (!payment) {
-            return sendNotFound(res, 'Payment not found');
-        }
-
-        if (payment.userId.toString() !== userId) {
-            return res.status(403).json({ error: 'Unauthorized' });
-        }
-
-        const refundData = await paypalService.refundPayment(
-            paymentId,
-            amount,
-            reason
-        );
-
-        return sendSuccess(res, {
-            message: 'PayPal refund processed successfully',
-            data: refundData,
-        });
-    } catch (error) {
-        next(error);
+    // Access control: Only finance agents, administrators or super_admins can issue refunds
+    const allowedRoles = ['finance', 'admin', 'super_admin'];
+    if (!allowedRoles.includes(req.user?.role)) {
+      return sendForbidden(res, 'Unauthorized to initiate refunds');
     }
+
+    const refundData = await paypalService.refundPayment(
+      paymentId,
+      amount || null, // null defaults to full remaining balance refund
+      reason || 'Booking cancelled',
+      userId,
+      correlationId
+    );
+
+    return sendSuccess(res, {
+      message: 'PayPal refund processed successfully',
+      data: refundData,
+    });
+  } catch (error) {
+    next(error);
+  }
 };
-//  Now I have Cloud Opus 4.6 So I want to You write one of the best prompt for all issue 
-//   like Validation problems , Currency Issue , Capture endpoint , Check Duplicate pyment 
-// , booking reference (use mongooes dynmic refercne),  Webhook need improvement , Idempatency ,  transation , Payment expiry , retry logic ,Previent Idempotency key (Double click != two pyment), Distributed Lock , Queue , And Audit log , Cover every usecase possible for payment gateway integration with paypal and write batter prompt...  
 
 module.exports = {
-    createPaymentOrder,
-    capturePayment,
-    getPaymentStatus,
-    refundPayment,
+  createPaymentOrder,
+  capturePayment,
+  getPaymentStatus,
+  refundPayment,
 };

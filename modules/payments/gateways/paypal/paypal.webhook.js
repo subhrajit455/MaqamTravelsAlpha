@@ -2,177 +2,256 @@ const express = require('express');
 const axios = require('axios');
 const paypalService = require('./paypal.service');
 const Payment = require('../../payment.model');
+const WebhookEvent = require('../../webhookEvent.model');
+const { getAccessToken } = require('./paypal.adapter');
+const { withLock } = require('../../distributedLock');
 const logger = require('../../../../utils/logger');
+const { PAYMENT_STATUS } = require('../../payment.constants');
 
 const router = express.Router();
 
 /**
- * ─── PAYPAL WEBHOOK HANDLER ──────────────────────────
- * PayPal IPN (Instant Payment Notification) endpoint
- * 
- * This is a public endpoint for PayPal to send notifications
- * Security: We verify the event with PayPal API by posting back to check validity
+ * Verifies PayPal webhook headers using PayPal's signature check API.
  */
-
-/**
- * Verify PayPal IPN message signature
- * @param {object} body - IPN message body
- * @returns {Promise<boolean>} True if valid and verified by PayPal
- */
-const verifyIPNSignature = async (body) => {
-    try {
-        logger.info('[PayPal Webhook] Verifying IPN signature with PayPal API');
-
-        // Construct URL-encoded parameters representing the original IPN message prepended with command
-        const params = new URLSearchParams();
-        params.append('cmd', '_notify-validate');
-        for (const key in body) {
-            params.append(key, body[key]);
-        }
-
-        const paypalURL = process.env.PAYPAL_MODE === 'production'
-            ? 'https://ipnpb.paypal.com/cgi-bin/webscr'
-            : 'https://ipnpb.sandbox.paypal.com/cgi-bin/webscr';
-
-        const response = await axios.post(paypalURL, params.toString(), {
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'User-Agent': 'MaqamTravels-IPN-Verifier/1.0.0',
-            },
-            timeout: 10000,
-        });
-
-        const isVerified = response.data === 'VERIFIED';
-        logger.info(`[PayPal Webhook] Verification response: "${response.data}" (Verified: ${isVerified})`);
-        return isVerified;
-    } catch (error) {
-        logger.error(`[PayPal Webhook] IPN verification request error: ${error.message}`);
-        return false;
+const verifyWebhookSignature = async (req) => {
+  try {
+    const webhookId = process.env.PAYPAL_WEBHOOK_ID;
+    if (!webhookId) {
+      logger.error('[PayPal Webhook] PAYPAL_WEBHOOK_ID is not configured in env variables.');
+      return false;
     }
+
+    const token = await getAccessToken();
+    const isProd = process.env.PAYPAL_MODE === 'production';
+    const verifyUrl = isProd
+      ? 'https://api.paypal.com/v1/notifications/verify-webhook-signature'
+      : 'https://api.sandbox.paypal.com/v1/notifications/verify-webhook-signature';
+
+    const response = await axios.post(
+      verifyUrl,
+      {
+        auth_algo: req.headers['paypal-auth-algo'],
+        cert_url: req.headers['paypal-cert-url'],
+        transmission_id: req.headers['paypal-transmission-id'],
+        transmission_sig: req.headers['paypal-transmission-sig'],
+        transmission_time: req.headers['paypal-transmission-time'],
+        webhook_id: webhookId,
+        webhook_event: req.body, // The parsed JSON body of the webhook
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        timeout: 10000,
+      }
+    );
+
+    return response.data?.verification_status === 'SUCCESS';
+  } catch (error) {
+    logger.error(`[PayPal Webhook] Signature verification request failed: ${error.message}`);
+    return false;
+  }
 };
 
 /**
- * Handle payment completed IPN
+ * PAYMENT.CAPTURE.COMPLETED Handler
  */
-const handlePaymentCompleted = async (ipnData) => {
-    try {
-        logger.info(`[PayPal Webhook] Payment completed: ${ipnData.txn_id}`);
+const handleCaptureCompleted = async (event, correlationId) => {
+  const resource = event.resource;
+  const captureId = resource.id;
+  const orderId = resource.supplementary_data?.related_ids?.order_id;
+  const bookingId = resource.custom_id;
 
-        const { txn_id: transactionId, custom: paymentId, mc_gross: amount, payment_status } = ipnData;
+  logger.info(`[PayPal Webhook] Processing capture.completed event - Capture: ${captureId}, Order: ${orderId}`, { correlationId });
 
-        if (payment_status !== 'Completed') {
-            logger.warn(`[PayPal Webhook] Payment status is not Completed: ${payment_status}`);
-            return;
-        }
+  // Fallback lookup: search by PayPal Order ID, then by Mongoose bookingId
+  const query = orderId 
+    ? { 'gatewayData.orderId': orderId } 
+    : { bookingId, paymentMethod: 'paypal' };
 
-        // Find payment by internal ID stored in 'custom' field
-        const payment = await Payment.findById(paymentId);
+  const payment = await Payment.findOne(query);
+  if (!payment) {
+    throw new Error(`Orphaned Webhook: Payment record not found for Order ID: ${orderId || 'N/A'}, Booking ID: ${bookingId}`);
+  }
 
-        if (!payment) {
-            logger.warn(`[PayPal Webhook] Payment record not found: ${paymentId}`);
-            return;
-        }
+  // If already processed as PAID, complete idempotently
+  if (payment.status === PAYMENT_STATUS.PAID) {
+    logger.info(`[PayPal Webhook] Payment already marked as PAID (idempotent skip): ${payment._id}`, { correlationId });
+    return;
+  }
 
-        // Update payment with PayPal transaction info if not already paid
-        if (payment.status !== 'paid') {
-            payment.paypalTransactionId = transactionId;
-            payment.paypalCaptureId = transactionId; // For IPN, transactionId acts as captureId
-            payment.status = 'paid';
-            payment.verifiedAt = new Date();
-            await payment.save();
-
-            // Process successful payment
-            await paypalService.processSuccessfulPayment(paymentId);
-            logger.info(`[PayPal Webhook] Payment processed - Transaction: ${transactionId}`);
-        } else {
-            logger.info(`[PayPal Webhook] Payment already marked as paid - Transaction: ${transactionId}`);
-        }
-    } catch (error) {
-        logger.error(`[PayPal Webhook] Handle payment completed error: ${error.message}`);
-    }
+  // Reuse service capture logic (enforces database transaction, locks, and booking updates)
+  // Since lock key is derived from orderId, this serializes correctly with concurrent API threads
+  await paypalService.captureAndVerifyPayment(payment.gatewayData.orderId, null, correlationId);
+  
+  // Trigger post-processing operations asynchronously
+  paypalService.processSuccessfulPayment(payment._id, correlationId)
+    .catch(err => logger.error(`[PayPal Webhook] Successful capture post-processing fail: ${err.message}`));
 };
 
 /**
- * Handle payment refunded IPN
+ * PAYMENT.CAPTURE.DENIED / FAILED Handler
  */
-const handlePaymentRefunded = async (ipnData) => {
-    try {
-        logger.info(`[PayPal Webhook] Refund processed: ${ipnData.txn_id}`);
+const handleCaptureFailed = async (event, correlationId) => {
+  const resource = event.resource;
+  const orderId = resource.supplementary_data?.related_ids?.order_id;
+  
+  const payment = await Payment.findOne({ 'gatewayData.orderId': orderId });
+  if (!payment) return;
 
-        const { txn_id: refundId, parent_txn_id: originalTxn, mc_gross: amount } = ipnData;
-
-        // Find payment by original transaction
-        const payment = await Payment.findOne({ paypalTransactionId: originalTxn });
-
-        if (!payment) {
-            logger.warn(`[PayPal Webhook] Original payment not found: ${originalTxn}`);
-            return;
-        }
-
-        // Update with refund info
-        if (payment.status !== 'refunded') {
-            payment.status = 'refunded';
-            payment.refundRefId = refundId;
-            payment.refundAmount = Math.abs(parseFloat(amount));
-            payment.refundProcessedAt = new Date();
-            await payment.save();
-
-            logger.info(`[PayPal Webhook] Refund recorded - Refund ID: ${refundId}`);
-        }
-    } catch (error) {
-        logger.error(`[PayPal Webhook] Handle refund error: ${error.message}`);
-    }
+  if (payment.status !== PAYMENT_STATUS.FAILED) {
+    payment.status = PAYMENT_STATUS.FAILED;
+    payment.failureReason = resource.status_details?.reason || 'PayPal Capture Denied';
+    await payment.save();
+    logger.warn(`[PayPal Webhook] Payment failed: ${payment._id}, Reason: ${payment.failureReason}`, { correlationId });
+  }
 };
 
 /**
- * Main IPN endpoint
- * POST /webhook/paypal/ipn
+ * PAYMENT.CAPTURE.REFUNDED Handler
+ */
+const handleRefundCompleted = async (event, correlationId) => {
+  const resource = event.resource;
+  const captureId = resource.capture_id;
+  const refundId = resource.id;
+  const refundAmount = parseFloat(resource.amount?.value || '0');
+
+  logger.info(`[PayPal Webhook] Processing refund.completed event - Refund ID: ${refundId}, Capture ID: ${captureId}`, { correlationId });
+
+  const payment = await Payment.findOne({ 'gatewayData.captureId': captureId });
+  if (!payment) return;
+
+  // Check if refund is already logged in refunds array
+  const alreadyLogged = payment.refunds.some(r => r.refundId === refundId);
+  if (alreadyLogged) {
+    logger.info(`[PayPal Webhook] Refund event already logged (idempotent skip): ${refundId}`, { correlationId });
+    return;
+  }
+
+  // Push refund logs and update total amount
+  payment.refunds.push({
+    refundId,
+    amount: refundAmount,
+    currency: payment.currency,
+    reason: resource.note_to_payer || 'Reconciled from gateway webhook',
+    status: 'processed',
+    processedAt: new Date(resource.create_time),
+    gatewayResponse: resource,
+  });
+
+  payment.totalRefunded = parseFloat((payment.totalRefunded + refundAmount).toFixed(2));
+  payment.status = payment.totalRefunded >= payment.amount ? PAYMENT_STATUS.REFUNDED : PAYMENT_STATUS.PARTIALLY_REFUNDED;
+  await payment.save();
+
+  logger.info(`[PayPal Webhook] Refund synchronized successfully. Status: ${payment.status}`, { correlationId });
+};
+
+/**
+ * Main Webhook Handler Endpoint
+ * POST /webhook/paypal/ipn (or mounts globally on /webhook/paypal)
  */
 router.post('/ipn', async (req, res) => {
-    try {
-        logger.info('[PayPal Webhook] IPN request received');
+  const correlationId = req.correlationId;
+  const eventId = req.body?.id;
+  
+  try {
+    logger.info(`[PayPal Webhook] Webhook request received. Event ID: ${eventId}`, { correlationId });
 
-        // Verify signature
-        const isValid = await verifyIPNSignature(req.body);
-
-        if (!isValid) {
-            logger.warn('[PayPal Webhook] Invalid IPN signature verification check');
-            return res.status(400).json({ error: 'Invalid IPN signature' });
-        }
-
-        const ipnData = req.body;
-
-        // Route based on transaction type or payment status
-        switch (ipnData.txn_type) {
-            case 'web_accept':
-            case 'express_checkout':
-                await handlePaymentCompleted(ipnData);
-                break;
-
-            case 'send_money':
-            case 'web_accept_refund':
-            case 'refund':
-                await handlePaymentRefunded(ipnData);
-                break;
-
-            default:
-                // Check payment status directly if txn_type is missing or different
-                if (ipnData.payment_status === 'Completed') {
-                    await handlePaymentCompleted(ipnData);
-                } else if (ipnData.payment_status === 'Refunded' || ipnData.payment_status === 'Reversed') {
-                    await handlePaymentRefunded(ipnData);
-                } else {
-                    logger.info(`[PayPal Webhook] Unhandled IPN transaction. type: ${ipnData.txn_type}, status: ${ipnData.payment_status}`);
-                }
-        }
-
-        // Always return 200 to acknowledge IPN reception to PayPal
-        res.status(200).send('IPN OK');
-    } catch (error) {
-        logger.error(`[PayPal Webhook] IPN processing error: ${error.message}`);
-        // Return 200 even on processing errors to prevent PayPal from resending repeatedly
-        res.status(200).send('IPN Error Handled');
+    // 1. Replay attack verification: Ensure request transmission is fresh (within 5 minutes)
+    const transmissionTime = req.headers['paypal-transmission-time'];
+    if (transmissionTime) {
+      const transmissionDate = new Date(transmissionTime);
+      const replayThreshold = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes back window
+      if (transmissionDate < replayThreshold) {
+        logger.warn(`[PayPal Webhook] Replay attack blocked. Stale request timestamp: ${transmissionTime}`, { correlationId });
+        return res.status(400).send('Stale request rejected');
+      }
     }
+
+    // 2. Cryptographic signature check via PayPal's endpoints
+    const isValid = await verifyWebhookSignature(req);
+    if (!isValid) {
+      logger.warn('[PayPal Webhook] Invalid cryptographic signature verification.', { correlationId });
+      return res.status(403).json({ error: 'Signature verification check failed' });
+    }
+
+    // 3. Deduplication check: Record event receipt atomically
+    let webhookEventRecord;
+    try {
+      webhookEventRecord = await WebhookEvent.create({
+        eventId,
+        gateway: 'paypal',
+        eventType: req.body.event_type,
+        payload: req.body,
+        status: 'received',
+      });
+    } catch (err) {
+      if (err.code === 11000) {
+        logger.warn(`[PayPal Webhook] Duplicate event rejected. Event ID: ${eventId}`, { correlationId });
+        return res.status(200).send('Duplicate event bypassed');
+      }
+      throw err;
+    }
+
+    // 4. Lock resource and process payload
+    // Lock key is derived from the event ID to serialize processing
+    const processLockKey = `webhook:paypal:${eventId}`;
+    await withLock(processLockKey, 15000, async () => {
+      webhookEventRecord.status = 'processing';
+      webhookEventRecord.attempts += 1;
+      webhookEventRecord.lastAttemptAt = new Date();
+      await webhookEventRecord.save();
+
+      const eventType = req.body.event_type;
+      
+      switch (eventType) {
+        case 'PAYMENT.CAPTURE.COMPLETED':
+          await handleCaptureCompleted(req.body, correlationId);
+          break;
+
+        case 'PAYMENT.CAPTURE.DENIED':
+        case 'PAYMENT.CAPTURE.FAILED':
+          await handleCaptureFailed(req.body, correlationId);
+          break;
+
+        case 'PAYMENT.CAPTURE.REFUNDED':
+          await handleRefundCompleted(req.body, correlationId);
+          break;
+
+        default:
+          logger.info(`[PayPal Webhook] Unhandled Webhook Event Type: ${eventType}`, { correlationId });
+      }
+
+      webhookEventRecord.status = 'processed';
+      webhookEventRecord.processedAt = new Date();
+      await webhookEventRecord.save();
+    });
+
+    // Webhooks must ALWAYS return a success status to prevent retries
+    return res.status(200).send('Webhook Received');
+  } catch (error) {
+    logger.error(`[PayPal Webhook] Failed to process event ${eventId}: ${error.message}`, { correlationId });
+    
+    // Dead Letter Queue (DLQ) integration: Update event record to failed state
+    if (eventId) {
+      try {
+        await WebhookEvent.findOneAndUpdate(
+          { eventId },
+          {
+            status: 'failed',
+            error: error.message,
+            lastAttemptAt: new Date(),
+          }
+        );
+      } catch (dlqErr) {
+        logger.error(`[PayPal Webhook] Failed to write to Webhook Event DLQ: ${dlqErr.message}`);
+      }
+    }
+
+    // Return 200 OK so PayPal doesn't repeat the webhook indefinitely
+    return res.status(200).send('Webhook Error Managed');
+  }
 });
 
 module.exports = router;

@@ -1,126 +1,133 @@
-const { body, param } = require('express-validator');
+const { body, param, header } = require('express-validator');
+const { BOOKING_MODEL_MAP, SUPPORTED_CURRENCIES } = require('./payment.constants');
 
 /**
  * ─── PAYMENT VALIDATORS ────────────────────────────────
- * Gateway-agnostic validators for all payment endpoints
+ * Input validation for payment API endpoints.
+ * Amount and currency fields are removed to prevent tampering.
  */
 
-// ─── Generic Payment Validators ────────────────────────
-const validatePaymentId = () => [
+// General Validators
+const validatePaymentId = [
   param('paymentId')
     .isMongoId()
     .withMessage('Invalid payment ID'),
 ];
 
-const validateCreatePayment = () => [
-  body('bookingId')
+// Verify that the required Idempotency-Key is passed in header
+const validateIdempotencyKey = [
+  header('Idempotency-Key')
+    .trim()
     .notEmpty()
-    .isMongoId()
-    .withMessage('Valid booking ID is required'),
-  body('amount')
-    .notEmpty()
-    .isFloat({ min: 1 })
-    .withMessage('Amount must be greater than 0'),
-  body('currency')
-    .optional()
-    .isLength({ min: 3, max: 3 })
-    .withMessage('Currency must be a 3-letter code'),
-  body('paymentMethod')
-    .notEmpty()
-    .isIn(['razorpay', 'paypal', 'phonepe', 'bank_transfer'])
-    .withMessage('Invalid payment method'),
+    .withMessage('Idempotency-Key header is required for safe retries')
+    .isLength({ min: 1, max: 128 })
+    .withMessage('Invalid Idempotency-Key length'),
 ];
 
-// ─── Razorpay Validators ──────────────────────────────
-const validateCreatePaymentOrder = [
+// Unified Create Payment validator (Stripe or general gateway)
+const validateCreatePayment = [
+  ...validateIdempotencyKey,
   body('bookingId')
     .notEmpty()
     .isMongoId()
     .withMessage('Valid booking ID is required'),
   body('bookingType')
     .notEmpty()
-    .isIn(['flight', 'hotel', 'tour', 'package'])
+    .isIn(Object.keys(BOOKING_MODEL_MAP))
     .withMessage('Invalid booking type'),
-  body('amount')
+  body('paymentMethod')
     .notEmpty()
-    .isFloat({ min: 1 })
-    .withMessage('Amount must be greater than 0'),
+    .isIn(['razorpay', 'phonepe', 'paypal', 'stripe', 'bank_transfer'])
+    .withMessage('Invalid payment method'),
 ];
 
+// Razorpay Order Creation
+const validateCreatePaymentOrder = [
+  ...validateIdempotencyKey,
+  body('bookingId')
+    .notEmpty()
+    .isMongoId()
+    .withMessage('Valid booking ID is required'),
+  body('bookingType')
+    .notEmpty()
+    .isIn(Object.keys(BOOKING_MODEL_MAP))
+    .withMessage('Invalid booking type'),
+];
+
+// Razorpay Signature verification (Callback check)
 const validateVerifyPayment = [
   body('orderId')
+    .trim()
     .notEmpty()
     .withMessage('Order ID is required'),
   body('paymentId')
+    .trim()
     .notEmpty()
     .withMessage('Payment ID is required'),
   body('signature')
+    .trim()
     .notEmpty()
     .isLength({ min: 64, max: 64 })
     .withMessage('Invalid signature format'),
 ];
 
+// Gateway Refund Request
 const validateRefundRequest = [
-  param('paymentId')
-    .isMongoId()
-    .withMessage('Invalid payment ID'),
+  ...validatePaymentId,
   body('reason')
     .optional()
+    .trim()
     .isString()
-    .withMessage('Reason must be a string'),
+    .isLength({ max: 500 })
+    .withMessage('Reason must be a valid string up to 500 characters'),
   body('amount')
     .optional()
     .isFloat({ min: 0.01 })
-    .withMessage('Amount must be greater than 0'),
+    .withMessage('Refund amount must be a positive number greater than 0'),
 ];
 
-// ─── PayPal Validators ────────────────────────────────
+// PayPal Order Creation
 const validateCreatePayPalOrder = [
+  ...validateIdempotencyKey,
   body('bookingId')
     .notEmpty()
     .isMongoId()
     .withMessage('Valid booking ID is required'),
   body('bookingType')
     .notEmpty()
-    .isIn(['flight', 'hotel', 'tour', 'package'])
+    .isIn(Object.keys(BOOKING_MODEL_MAP))
     .withMessage('Invalid booking type'),
-  body('amount')
-    .notEmpty()
-    .isFloat({ min: 1 })
-    .withMessage('Amount must be greater than 0'),
 ];
 
+// PayPal Approve / Capture
 const validatePayPalApprove = [
   body('orderId')
+    .trim()
     .notEmpty()
     .withMessage('PayPal Order ID is required'),
-  body('payerId')
-    .notEmpty()
-    .withMessage('PayPal Payer ID is required'),
 ];
 
-// ─── PhonePe Validators ───────────────────────────────
+// PhonePe Order Creation
 const validateCreatePhonePeOrder = [
+  ...validateIdempotencyKey,
   body('bookingId')
     .notEmpty()
     .isMongoId()
     .withMessage('Valid booking ID is required'),
   body('bookingType')
     .notEmpty()
-    .isIn(['flight', 'hotel', 'tour', 'package'])
+    .isIn(Object.keys(BOOKING_MODEL_MAP))
     .withMessage('Invalid booking type'),
-  body('amount')
-    .notEmpty()
-    .isFloat({ min: 1 })
-    .withMessage('Amount must be greater than 0'),
   body('phoneNumber')
     .notEmpty()
-    .isLength({ min: 10, max: 10 })
-    .withMessage('Valid 10-digit phone number required'),
+    .isMobilePhone('any')
+    .withMessage('Valid phone number is required'),
 ];
 
+// PhonePe Callback handling
 const validatePhonePeCallback = [
   body('transactionId')
+    .trim()
     .notEmpty()
     .withMessage('Transaction ID is required'),
   body('status')
@@ -130,20 +137,14 @@ const validatePhonePeCallback = [
 ];
 
 module.exports = {
-  // Generic
   validatePaymentId,
+  validateIdempotencyKey,
   validateCreatePayment,
-
-  // Razorpay
   validateCreatePaymentOrder,
   validateVerifyPayment,
   validateRefundRequest,
-  
-  // PayPal
   validateCreatePayPalOrder,
   validatePayPalApprove,
-
-  // PhonePe
   validateCreatePhonePeOrder,
   validatePhonePeCallback,
 };

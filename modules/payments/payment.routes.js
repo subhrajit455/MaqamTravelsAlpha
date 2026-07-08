@@ -2,63 +2,53 @@ const express = require('express');
 const razorpayController = require("./gateways/razorpay/razorpay.controller");
 const paypalController = require("./gateways/paypal/paypal.controller");
 const phonepeController = require("./gateways/phonepe/phonepe.controller");
+
 const paymentValidator = require('./payment.validator');
 const validate = require('../../middleware/validate');
 const { authenticate } = require('../../middleware/auth');
+const { paymentLimiter } = require('../../middleware/rateLimiter');
+const idempotency = require('./idempotency.middleware');
 
 const router = express.Router();
 
 /**
  * ─── PAYMENT ROUTES ────────────────────────────────────
- * Unified multi-gateway payment endpoints
- * All endpoints require authentication
+ * Unified multi-gateway payment endpoints.
+ * Mounts standard rate-limiting and request idempotency safeguards.
  */
 
 // ─── RAZORPAY ROUTES ───────────────────────────────────
-/**
- * Create Razorpay Order
- * POST /api/v1/payments/razorpay/create-order
- * Body: { bookingId, bookingType, amount }
- */
 router.post(
   '/razorpay/create-order',
   authenticate,
+  paymentLimiter,
+  idempotency,
   paymentValidator.validateCreatePaymentOrder,
   validate,
   razorpayController.createPaymentOrder
 );
 
-/**
- * Verify Razorpay Payment
- * POST /api/v1/payments/razorpay/verify
- * Body: { orderId, paymentId, signature }
- */
 router.post(
   '/razorpay/verify',
   authenticate,
+  paymentLimiter,
   paymentValidator.validateVerifyPayment,
   validate,
   razorpayController.verifyPayment
 );
 
-/**
- * Get Razorpay Payment Status
- * GET /api/v1/payments/razorpay/:paymentId
- */
 router.get(
   '/razorpay/:paymentId',
   authenticate,
+  paymentValidator.validatePaymentId,
+  validate,
   razorpayController.getPaymentStatus
 );
 
-/**
- * Refund Razorpay Payment
- * POST /api/v1/payments/razorpay/:paymentId/refund
- * Body: { amount, reason }
- */
 router.post(
   '/razorpay/:paymentId/refund',
   authenticate,
+  paymentLimiter,
   paymentValidator.validateRefundRequest,
   validate,
   razorpayController.refundPayment
@@ -66,50 +56,38 @@ router.post(
 
 
 // ─── PAYPAL ROUTES ─────────────────────────────────────
-/**
- * Create PayPal Order
- * POST /api/v1/payments/paypal/create-order
- * Body: { bookingId, bookingType, amount }
- */
 router.post(
   '/paypal/create-order',
   authenticate,
+  paymentLimiter,
+  idempotency,
   paymentValidator.validateCreatePayPalOrder,
   validate,
   paypalController.createPaymentOrder
 );
 
-/**
- * Capture PayPal Order
- * POST /api/v1/payments/paypal/capture
- * Body: { orderId }
- */
 router.post(
   '/paypal/capture',
   authenticate,
+  paymentLimiter,
+  idempotency,
   paymentValidator.validatePayPalApprove,
   validate,
   paypalController.capturePayment
 );
 
-/**
- * Get PayPal Payment Status
- * GET /api/v1/payments/paypal/:paymentId
- */
 router.get(
   '/paypal/:paymentId',
   authenticate,
+  paymentValidator.validatePaymentId,
+  validate,
   paypalController.getPaymentStatus
 );
 
-/**
- * Refund PayPal Payment
- * POST /api/v1/payments/paypal/:paymentId/refund
- * Body: { amount, reason }
- */
 router.post(
   '/paypal/:paymentId/refund',
   authenticate,
+  paymentLimiter,
   paymentValidator.validateRefundRequest,
   validate,
   paypalController.refundPayment
@@ -117,50 +95,37 @@ router.post(
 
 
 // ─── PHONEPE ROUTES ────────────────────────────────────
-/**
- * Create PhonePe Payment Request
- * POST /api/v1/payments/phonepe/create-order
- * Body: { bookingId, bookingType, amount, phoneNumber }
- */
 router.post(
   '/phonepe/create-order',
   authenticate,
+  paymentLimiter,
+  idempotency,
   paymentValidator.validateCreatePhonePeOrder,
   validate,
   phonepeController.createPaymentOrder
 );
 
-/**
- * Verify PhonePe Payment
- * POST /api/v1/payments/phonepe/verify
- * Body: { transactionId, paymentId }
- */
 router.post(
   '/phonepe/verify',
   authenticate,
+  paymentLimiter,
   paymentValidator.validatePhonePeCallback,
   validate,
   phonepeController.verifyPayment
 );
 
-/**
- * Get PhonePe Payment Status
- * GET /api/v1/payments/phonepe/:paymentId
- */
 router.get(
   '/phonepe/:paymentId',
   authenticate,
+  paymentValidator.validatePaymentId,
+  validate,
   phonepeController.getPaymentStatus
 );
 
-/**
- * Refund PhonePe Payment
- * POST /api/v1/payments/phonepe/:paymentId/refund
- * Body: { amount, reason }
- */
 router.post(
   '/phonepe/:paymentId/refund',
   authenticate,
+  paymentLimiter,
   paymentValidator.validateRefundRequest,
   validate,
   phonepeController.refundPayment
