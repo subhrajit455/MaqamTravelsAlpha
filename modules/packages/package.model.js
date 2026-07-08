@@ -4,7 +4,18 @@ const mongoose = require('mongoose');
  * ─── PACKAGE MODEL (Pre-built Tour Package Schema) ────
  * Stores curated tour packages that users can book directly
  */
-
+const FlightSchema = new mongoose.Schema({
+  arrival: {
+    type: String,
+    required: true},
+    departure: {type:string, required:true},
+    flightNumber: {type:string, required:true},
+    airline: {type:string, required:true},
+    price: {type:number, required:true},
+    nameAdditionDeadline: {type:date },
+    
+    
+})
 const packageSchema = new mongoose.Schema(
   {
     // Package info

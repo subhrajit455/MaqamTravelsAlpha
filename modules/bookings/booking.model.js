@@ -3,7 +3,7 @@ const { BOOKING_TYPES, BOOKING_STATUS } = require('../../config/constants');
 
 /**
  * ─── BOOKING MODEL (Master Booking Schema) ────────────
- * Tracks all bookings (hotels, flights, tours, packages)
+ * Tracks all bookings (hotels, flights, offers, packages)
  * Individual details stored in respective domain models
  */
 

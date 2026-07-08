@@ -3,7 +3,6 @@ const FlightBooking = require("./flight.model");
 const logger = require("../../utils/logger");
 const { AppError } = require("../../middleware/errorHandler");
 const cache = require("../../utils/chache");
-const paypalService = require("../payments/paypal.service"); // adjust to actual export
 
 const SEARCH_CACHE_TTL_MS = 15 * 60 * 1000; // 15 min
 const FAREQUOTE_CACHE_TTL_MS = 15 * 60 * 1000;
@@ -195,7 +194,7 @@ const getFareQuoteService = async ({ traceId, resultIndex }) => {
 // --- Book --------------------------------------------------------------
 // flight-booking-flow.md §4 — branch isLCC, doc pre-call, then post-call update
 
-const book = async ({
+const bookFlightService = async ({
   userId,
   traceId,
   resultIndex,
@@ -380,6 +379,6 @@ module.exports = {
   searchFlightsService,
   getFareQuoteService,
   getCachedSearchEntryService,
-  book,
+  bookFlightService,
   ticketGDSAfterPayment,
 };

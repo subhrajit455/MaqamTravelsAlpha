@@ -2,9 +2,9 @@ const {
   searchFlightsService,
   getFareQuoteService,
   getCachedSearchEntryService,
-  book,
+  bookFlightService,
 } = require("./flight.service");
-const { sendSuccess, sendNotFound } = require("../../utils/apiResponse");
+const { sendSuccess, sendCreated, sendNotFound } = require("../../utils/apiResponse");
 
 const searchFlights = async (req, res, next) => {
   try {
@@ -50,22 +50,30 @@ const getFareQuote = async (req, res, next) => {
   }
 };
 
-const book = async (req, res) => {
-  const { traceId, resultIndex, passengers, gstDetails } = req.body;
-  const userId = req.user.id;
+const book = async (req, res, next) => {
+  try {
+    const { traceId, resultIndex, passengers, gstDetails } = req.body;
+    const userId = req.user?.id;
 
-  const result = await flightService.book({
-    userId,
-    traceId,
-    resultIndex,
-    passengers,
-    gstDetails,
-  });
+    if (!userId) {
+      return sendNotFound(res, "Authenticated user is required");
+    }
 
-  return sendCreated(res, {
-    message: "Booking initiated, proceed to payment",
-    data: result,
-  });
+    const result = await bookFlightService({
+      userId,
+      traceId,
+      resultIndex,
+      passengers,
+      gstDetails,
+    });
+
+    return sendCreated(res, {
+      message: "Booking initiated, proceed to payment",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 module.exports = {

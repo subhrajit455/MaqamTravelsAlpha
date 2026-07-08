@@ -11,7 +11,7 @@ const { apiLimiter }   = require('./middleware/rateLimiter');
 const { errorHandler } = require('./middleware/errorHandler');
 const logger           = require('./utils/logger');
 
-// ─── Module Route imports (new structure) ─────────────────
+// ─── Module Route imports─────────────────
 const authRoutes    = require('./modules/auth/auth.routes');
 const hotelRoutes   = require('./modules/hotels/hotel.routes');
 const flightRoutes  = require('./modules/flights/flight.routes');
@@ -22,6 +22,31 @@ const paymentRoutes = require('./modules/payments/payment.routes');
 const accountRoutes = require('./modules/account/account.routes');
 const cmsRoutes     = require('./modules/cms/cms.routes');
 const crmRoutes     = require('./modules/crm/crm.routes');
+
+// SWAGGER SETUP
+const swaggerUi = require('swagger-ui-express');
+const swaggerJSDoc = require('swagger-jsdoc');
+
+const swaggerDocument = swaggerJSDoc({
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'Travel Booking API',
+      version: '1.0.0',
+      description: 'API documentation for the Travel Booking platform',
+    },
+    servers: [
+      { url: 'http://localhost:5000', description: 'Local development server' },
+    ],
+    tags: [
+      { name: 'Health', description: 'Health and status endpoints' },
+      { name: 'Auth', description: 'Authentication and account access' },
+      { name: 'Flights', description: 'Flight search, fares, and booking' },
+      { name: 'Bookings', description: 'Booking lifecycle operations' },
+    ],
+  },
+  apis: ['./app.js', './modules/**/*.js'],
+});
 
 const app = express();
 app.use(cors({
@@ -54,6 +79,27 @@ if (process.env.NODE_ENV === 'development') {
 
 app.use('/api', apiLimiter);
 
+/**
+ * @openapi
+ * /health:
+ *   get:
+ *     tags: [Health]
+ *     summary: Check server health
+ *     responses:
+ *       200:
+ *         description: Server is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                 env:
+ *                   type: string
+ *                 uptime:
+ *                   type: number
+ */
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -61,6 +107,13 @@ app.get('/health', (req, res) => {
     uptime: process.uptime(),
   });
 });
+
+//swagger setup
+app.set('swaggerDocument', swaggerDocument);
+app.get('/api/docs.json', (_req, res) => {
+  res.json(swaggerDocument);
+});
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 app.use('/api/v1/auth',     authRoutes);
 app.use('/api/v1/hotels',   hotelRoutes);
