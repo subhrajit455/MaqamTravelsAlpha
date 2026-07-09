@@ -43,49 +43,6 @@ const flightClient = axios.create({
  * Hotel endpoints
  */
 
-const searchHotels = async ({ destination, checkIn, checkOut, guests }) => {
-  try {
-    logger.info(`SRDV: Searching hotels in ${destination}`);
-
-    const response = await hotelClient.get("/hotels/search", {
-      params: {
-        destination,
-        checkIn,
-        checkOut,
-        guests,
-      },
-    });
-
-    return response.data;
-  } catch (error) {
-    logger.error(`SRDV hotel search failed: ${error.message}`);
-    throw new AppError("SRDV API error", 500);
-  }
-};
-
-const getHotelDetails = async (hotelId) => {
-  try {
-    logger.info(`SRDV: Fetching hotel ${hotelId}`);
-
-    const response = await hotelClient.get(`/hotels/${hotelId}`);
-    return response.data;
-  } catch (error) {
-    logger.error(`SRDV hotel details failed: ${error.message}`);
-    throw new AppError("SRDV API error", 500);
-  }
-};
-
-const getHotelRoomAvailability = async (hotelId, checkIn, checkOut) => {
-  try {
-    const response = await hotelClient.get(`/hotels/${hotelId}/rooms`, {
-      params: { checkIn, checkOut },
-    });
-    return response.data;
-  } catch (error) {
-    logger.error(`SRDV room availability failed: ${error.message}`);
-    throw error;
-  }
-};
 
 /************* FLIGHT ENDPOINTS ********************/
 
@@ -134,8 +91,7 @@ const searchFlights = async ({
   journeyType,
 }) => {
   try {
-    logger.info(`SRDV: Searching flights from ${departure} to ${arrival}`);
-
+    
     const segment = {
       Origin: departure,
       Destination: arrival,
@@ -143,10 +99,10 @@ const searchFlights = async ({
       PreferredDepartureTime: normalizeDateTime(departDate),
       PreferredArrivalTime: normalizeDateTime(departDate),
     };
-
+    
     const segments = [segment];
     const journeyTypeCode = mapJourneyType(journeyType);
-
+    
     if (journeyTypeCode === 2 && returnDate) {
       segments.push({
         Origin: arrival,
@@ -156,7 +112,8 @@ const searchFlights = async ({
         PreferredArrivalTime: normalizeDateTime(returnDate),
       });
     }
-
+    
+    logger.info(`SRDV: Searching flights from ${departure} to ${arrival}, journeyType: ${journeyType}`);
     const payload = {
       ...SRDV_CREDENTIALS,
       ...mapPassengerCounts(passengers),
@@ -173,29 +130,24 @@ const searchFlights = async ({
   }
 };
 
-const getFlightDetails = async (SrdvType, TraceId, SrdvIndex, ResultIndex) => {
-  const payloadData = {
-    SrdvType,
-    TraceId,
-    SrdvIndex,
-    ResultIndex,
-  };
+const fareQuote = async ({ srdvType, traceId, srdvIndex, resultIndex }) => {
   try {
     const payload = {
       ...SRDV_CREDENTIALS,
-      ...payloadData,
+      SrdvType: srdvType,
+      TraceId: traceId,
+      SrdvIndex: srdvIndex,
+      ResultIndex: resultIndex,
     };
-    const response = await flightClient.post(`/FareQuote`, payload);
+    const response = await flightClient.post("/FareQuote", payload);
     return response.data;
   } catch (error) {
-    logger.error(`SRDV flight details failed: ${error.message}`);
+    logger.error(`SRDV fare quote failed: ${error.message}`);
     throw error;
   }
 };
 
-/**
- * Booking endpoints (for SRDV)
- */
+/**Booking endpoints (for SRDV)***/
 
 const createHotelReservation = async (hotelId, roomId, guestData) => {
   try {
@@ -219,12 +171,11 @@ const formatDate = (date) =>
 const buildPassenger = (
   traveller,
   isLeadPax,
-  fareData,// same fareData is being passed for every passenger, needs to be changed later
+  fareData, // same fareData is being passed for every passenger, needs to be changed later
   isLCC,
   gstData = {},
   ancillaries = {},
 ) => {
-  
   const passenger = {
     Title: traveller.title,
     FirstName: traveller.firstName,
@@ -266,42 +217,70 @@ const buildPassenger = (
   return passenger;
 };
 //****TICKETLLC */
-
+// Mirrors holdGDS's shape exactly (see srdv-flights-api-reference.md), just isLCC: true
+// and ancillaries wired through. This resolves the doc's own open TODO:
+// "ticketLCC hasn't been pasted/reviewed yet — check for the same two bug patterns
+// (payload-wrapping, empty/incomplete destructure)."
 const ticketLCC = async ({
-  srdvType,
-  traceId,
-  srdvIndex,
-  resultIndex,
-  travellers,
-  fareData,
-  gstData,
+  srdvType, traceId, srdvIndex, resultIndex, travellers, fareData, gstData, ancillaries,
 }) => {
-  const payload = {
-    ...SRDV_CREDENTIALS,
-    SrdvType: srdvType,
-    TraceId: traceId,
-    SrdvIndex: srdvIndex,
-    ResultIndex: resultIndex,
-    Passengers: travellers.map((t) =>
-      buildPassenger(
-        t.traveller,
-        t.isLeadPax,
-        fareData,
-        true,
-        gstData,
-        t.ancillaries,
-      ),
-    ),
-  };
-
   try {
+    const payload = {
+      ...SRDV_CREDENTIALS,
+      SrdvType: srdvType,
+      SrdvIndex: srdvIndex,
+      TraceId: traceId,
+      ResultIndex: resultIndex,
+      // Flat top-level object, no { payload } wrapper — same fix as holdGDS.
+      // isLCC: true → buildPassenger's isLCC branch adds CellCountryCode,
+      // PassportIssueDate, Baggage[]/MealDynamic[]/Seat[].
+      Passengers: travellers.map((t) =>
+        buildPassenger(t.traveller, t.isLeadPax, fareData, true, gstData, ancillaries)
+      ),
+    };
     const response = await flightClient.post("/TicketLCC", payload);
     return response.data;
   } catch (error) {
-    logger.error(`SRDV TicketLCC failed: ${error.message}`);
+    logger.error(`SRDV flight booking failed: ${error.message}`);
     throw error;
   }
 };
+
+// const ticketLCC = async ({
+//   srdvType,
+//   traceId,
+//   srdvIndex,
+//   resultIndex,
+//   travellers,
+//   fareData,
+//   gstData,
+// }) => {
+//   const payload = {
+//     ...SRDV_CREDENTIALS,
+//     SrdvType: srdvType,
+//     TraceId: traceId,
+//     SrdvIndex: srdvIndex,
+//     ResultIndex: resultIndex,
+//     Passengers: travellers.map((t) =>
+//       buildPassenger(
+//         t.traveller,
+//         t.isLeadPax,
+//         fareData,
+//         true,
+//         gstData,
+//         t.ancillaries,
+//       ),
+//     ),
+//   };
+
+//   try {
+//     const response = await flightClient.post("/TicketLCC", payload);
+//     return response.data;
+//   } catch (error) {
+//     logger.error(`SRDV TicketLCC failed: ${error.message}`);
+//     throw error;
+//   }
+// };
 
 const holdGDS = async ({
   srdvType,
@@ -319,13 +298,12 @@ const holdGDS = async ({
       TraceId: traceId,
       SrdvIndex: srdvIndex,
       ResultIndex: resultIndex,
-      Passengers: travellers.map((t) => 
-        buildPassenger(t.traveller, t.isLeadPax, fareData, false, gstData)
+      Passengers: travellers.map((t) =>
+        buildPassenger(t.traveller, t.isLeadPax, fareData, false, gstData),
       ),
     };
 
-    const response = await flightClient.post("/hold", payload,
-    );
+    const response = await flightClient.post("/hold", payload);
     return response.data;
   } catch (error) {
     logger.error(`SRDV flight booking failed: ${error.message}`);
@@ -333,13 +311,15 @@ const holdGDS = async ({
   }
 };
 
-const ticketGDS =async ({srdvType,
+const ticketGDS = async ({
+  srdvType,
   traceId,
   srdvIndex,
   resultIndex,
   travellers,
   fareData,
-  gstData,})=> {
+  gstData,
+}) => {
   const payload = {
     ...SRDV_CREDENTIALS,
     SrdvType: srdvType,
@@ -348,24 +328,21 @@ const ticketGDS =async ({srdvType,
     ResultIndex: resultIndex,
     PNR: pnr,
     BookingId: bookingId,
-  }
+  };
 
-  try {    
-  const response = await flightClient.post("/TicketGDS",payload)
-  return response.data;
+  try {
+    const response = await flightClient.post("/TicketGDS", payload);
+    return response.data;
   } catch (error) {
-     logger.error(`SRDV flight booking failed: ${error.message}`);
+    logger.error(`SRDV flight booking failed: ${error.message}`);
     throw error;
   }
-}
+};
 
 module.exports = {
-  searchHotels,
-  getHotelDetails,
-  getHotelRoomAvailability,
+  ticketLCC,
   searchFlights,
-  getFlightDetails,
-  createHotelReservation,
+  fareQuote,
   holdGDS,
-  ticketGDS
+  ticketGDS,
 };

@@ -12,10 +12,10 @@ const { errorHandler } = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
 const correlationIdMiddleware = require('./middleware/correlationId');
 
-// ─── Module Route imports (new structure) ─────────────────
-const authRoutes = require('./modules/auth/auth.routes');
-const hotelRoutes = require('./modules/hotels/hotel.routes');
-const flightRoutes = require('./modules/flights/flight.routes');
+// ─── Module Route imports─────────────────
+const authRoutes    = require('./modules/auth/auth.routes');
+const hotelRoutes   = require('./modules/hotels/hotel.routes');
+const flightRoutes  = require('./modules/flights/flight.routes');
 const bookingRoutes = require('./modules/bookings/booking.routes');
 const tourRoutes = require('./modules/tours/tour.routes');
 const packageRoutes = require('./modules/packages/package.routes');
@@ -28,6 +28,31 @@ const crmRoutes = require('./modules/crm/crm.routes');
 const razorpayWebhook = require('./webhook/razorpay/razorpay.webhook');
 const paypalWebhook = require('./modules/payments/gateways/paypal/paypal.webhook');
 const phonepeWebhook = require('./modules/payments/gateways/phonepe/phonepe.webhook');
+
+// SWAGGER SETUP
+const swaggerUi = require('swagger-ui-express');
+const swaggerJSDoc = require('swagger-jsdoc');
+
+const swaggerDocument = swaggerJSDoc({
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'Travel Booking API',
+      version: '1.0.0',
+      description: 'API documentation for the Travel Booking platform',
+    },
+    servers: [
+      { url: 'http://localhost:5000', description: 'Local development server' },
+    ],
+    tags: [
+      { name: 'Health', description: 'Health and status endpoints' },
+      { name: 'Auth', description: 'Authentication and account access' },
+      { name: 'Flights', description: 'Flight search, fares, and booking' },
+      { name: 'Bookings', description: 'Booking lifecycle operations' },
+    ],
+  },
+  apis: ['./app.js', './modules/**/*.js'],
+});
 
 const app = express();
 
@@ -76,6 +101,27 @@ if (process.env.NODE_ENV === 'development') {
 
 app.use('/api', apiLimiter);
 
+/**
+ * @openapi
+ * /health:
+ *   get:
+ *     tags: [Health]
+ *     summary: Check server health
+ *     responses:
+ *       200:
+ *         description: Server is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                 env:
+ *                   type: string
+ *                 uptime:
+ *                   type: number
+ */
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -84,9 +130,16 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/hotels', hotelRoutes);
-app.use('/api/v1/flights', flightRoutes);
+//swagger setup
+app.set('swaggerDocument', swaggerDocument);
+app.get('/api/docs.json', (_req, res) => {
+  res.json(swaggerDocument);
+});
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
+app.use('/api/v1/auth',     authRoutes);
+app.use('/api/v1/hotels',   hotelRoutes);
+app.use('/api/v1/flights',  flightRoutes);
 app.use('/api/v1/bookings', bookingRoutes);
 app.use('/api/v1/tours', tourRoutes);
 app.use('/api/v1/packages', packageRoutes);
