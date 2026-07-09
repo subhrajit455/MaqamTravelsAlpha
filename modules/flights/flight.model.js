@@ -26,7 +26,7 @@ const GstDetailsSchema = new Schema(
     companyEmail: String,
     companyContactNumber: String,
   },
-  { _id: false }
+  { _id: false },
 );
 
 const FlightBookingSchema = new Schema(

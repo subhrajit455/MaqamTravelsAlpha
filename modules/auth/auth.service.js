@@ -3,13 +3,18 @@ const User = require('./auth.model');
 const { AppError } = require('../../middleware/errorHandler');
 const logger = require('../../utils/logger');
 const bcrypt = require('bcryptjs');
-const { generateTokens, generateRefreshAccessToken} = require('../../middleware/auth');
+const { generateTokens, generateRefreshAccessToken } = require('../../middleware/auth');
 
 
-const registerUser = async ({ email = null, password, firstName, lastName, phone }) => {
+const registerUser = async ({ email = null, password, firstName, lastName, phone, avatar = null }) => {
   const normalizedPhone = phone?.trim();
   const normalizedEmail = email?.trim().toLowerCase() || null;
   const hashedPassword = await bcrypt.hash(password, 10);
+  const allowedAvatars = User.AVATAR_OPTIONS || [];
+
+  if (avatar && !allowedAvatars.includes(avatar)) {
+    throw new AppError('Invalid avatar selection', 400);
+  }
 
   try {
     const existingPhone = await User.findOne({ phone: normalizedPhone });
@@ -22,8 +27,8 @@ const registerUser = async ({ email = null, password, firstName, lastName, phone
       if (existingEmail) {
         throw new AppError('Email already registered', 409);
       }
-      }
-      // otp verifivation will be added later
+    }
+
     const user = await User.create({
       phone: normalizedPhone,
       password: hashedPassword,
@@ -31,6 +36,7 @@ const registerUser = async ({ email = null, password, firstName, lastName, phone
       lastName,
       role: 'customer',
       email: normalizedEmail || undefined,
+      avatar: avatar || undefined,
     });
 
     const { accessToken, refreshToken } = generateTokens(user._id, user.role);
@@ -44,6 +50,7 @@ const registerUser = async ({ email = null, password, firstName, lastName, phone
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
+        avatar: user.avatar,
         role: user.role,
       },
       accessToken,
@@ -53,6 +60,10 @@ const registerUser = async ({ email = null, password, firstName, lastName, phone
     logger.error(`Registration failed for ${phone}: ${error.message}`);
     throw error;
   }
+};
+
+const getAvatarOptions = () => {
+  return User.AVATAR_OPTIONS || [];
 };
 
 
@@ -77,6 +88,8 @@ const loginUser = async ({ phone, password }) => {
         id: user._id,
         phone: user.phone,
         firstName: user.firstName,
+        lastName: user.lastName,
+        avatar: user.avatar,
         role: user.role,
       },
       accessToken,
@@ -91,8 +104,8 @@ const loginUser = async ({ phone, password }) => {
 const refreshAccessToken = async (refreshToken) => {
   try {
     const accessToken = generateRefreshAccessToken(refreshToken);
-     console.log("Access TOken",accessToken)
-    return accessToken ;
+    console.log("Access TOken", accessToken)
+    return accessToken;
   } catch (error) {
     logger.error(`Token refresh failed: ${error.message}`);
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
@@ -165,4 +178,7 @@ module.exports = {
   logoutUser,
   forgotPassword,
   resetPassword,
+  getAvatarOptions,
 };
+
+

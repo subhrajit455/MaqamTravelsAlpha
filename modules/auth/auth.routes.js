@@ -33,6 +33,9 @@ const validate = require('../../middleware/validate');
  *       400:
  *         description: Validation failed
  */
+
+// Public routes
+router.get('/avatar-options', authController.getAvatarOptions);
 router.post('/register', authValidator.validateRegister(), validate, authController.register);
 
 /**

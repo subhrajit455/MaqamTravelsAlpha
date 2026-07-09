@@ -1,6 +1,6 @@
-const Lead = require('./crm.model');
-const logger = require('../../utils/logger');
-const { LEAD_STATUS } = require('../../config/constants');
+const Lead = require("./crm.model");
+const logger = require("../../utils/logger");
+const { LEAD_STATUS } = require("../../config/constants");
 
 /**
  * ─── CRM SERVICE ───────────────────────────────────────
@@ -12,16 +12,16 @@ const listLeads = async ({ status, assignedTo, page = 1, limit = 20 } = {}) => {
     const query = {};
     if (status) query.status = status;
     if (assignedTo) query.assignedAgent = assignedTo;
-    
+
     const skip = (page - 1) * limit;
     const leads = await Lead.find(query)
       .skip(skip)
       .limit(parseInt(limit))
-      .populate('assignedAgent', 'firstName lastName email')
+      .populate("assignedAgent", "firstName lastName email")
       .sort({ createdAt: -1 });
-    
+
     const total = await Lead.countDocuments(query);
-    
+
     return {
       leads,
       meta: {
@@ -40,8 +40,8 @@ const listLeads = async ({ status, assignedTo, page = 1, limit = 20 } = {}) => {
 const getLeadById = async (leadId) => {
   try {
     return await Lead.findById(leadId)
-      .populate('assignedAgent', 'firstName lastName email')
-      .populate('convertedBooking');
+      .populate("assignedAgent", "firstName lastName email")
+      .populate("convertedBooking");
   } catch (error) {
     logger.error(`Get lead failed: ${error.message}`);
     throw error;
@@ -55,7 +55,7 @@ const createLead = async (agentId, leadData) => {
       assignedAgent: agentId,
       status: LEAD_STATUS.NEW,
     });
-    
+
     logger.info(`Lead created: ${lead._id}`);
     return lead;
   } catch (error) {
@@ -67,7 +67,7 @@ const createLead = async (agentId, leadData) => {
 const updateLead = async (leadId, updates) => {
   try {
     const lead = await Lead.findByIdAndUpdate(leadId, updates, { new: true });
-    
+
     if (lead) logger.info(`Lead updated: ${leadId}`);
     return lead;
   } catch (error) {
@@ -80,16 +80,16 @@ const convertLeadToBooking = async (leadId, bookingData) => {
   try {
     const lead = await Lead.findById(leadId);
     if (!lead) return null;
-    
+
     // TODO: Create booking from lead data
     // const booking = await Booking.create({ ...bookingData });
-    
+
     // Update lead status
     lead.status = LEAD_STATUS.CONVERTED;
     lead.convertedBooking = null; // bookingId
     lead.convertedAt = new Date();
     await lead.save();
-    
+
     logger.info(`Lead converted to booking: ${leadId}`);
     return lead;
   } catch (error) {
@@ -101,17 +101,18 @@ const convertLeadToBooking = async (leadId, bookingData) => {
 const getAgentStatistics = async (agentId) => {
   try {
     const leads = await Lead.find({ assignedAgent: agentId });
-    
+
     const stats = {
       totalLeads: leads.length,
       new: leads.filter((l) => l.status === LEAD_STATUS.NEW).length,
       contacted: leads.filter((l) => l.status === LEAD_STATUS.CONTACTED).length,
-      interested: leads.filter((l) => l.status === LEAD_STATUS.INTERESTED).length,
+      interested: leads.filter((l) => l.status === LEAD_STATUS.INTERESTED)
+        .length,
       quoted: leads.filter((l) => l.status === LEAD_STATUS.QUOTED).length,
       converted: leads.filter((l) => l.status === LEAD_STATUS.CONVERTED).length,
       lost: leads.filter((l) => l.status === LEAD_STATUS.LOST).length,
     };
-    
+
     return stats;
   } catch (error) {
     logger.error(`Get agent stats failed: ${error.message}`);
@@ -122,16 +123,18 @@ const getAgentStatistics = async (agentId) => {
 const getPipelineOverview = async () => {
   try {
     const leads = await Lead.find();
-    
+
     const overview = {
       totalLeads: leads.length,
       byStatus: {},
     };
-    
+
     Object.values(LEAD_STATUS).forEach((status) => {
-      overview.byStatus[status] = leads.filter((l) => l.status === status).length;
+      overview.byStatus[status] = leads.filter(
+        (l) => l.status === status,
+      ).length;
     });
-    
+
     return overview;
   } catch (error) {
     logger.error(`Get pipeline overview failed: ${error.message}`);

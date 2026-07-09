@@ -14,7 +14,7 @@ const refreshTokenCookieOptions = {
 
 const register = async (req, res, next) => {
   try {
-    const { email, password, firstName, lastName, phone } = req.body;
+    const { email, password, firstName, lastName, phone, avatar } = req.body;
 
     const result = await authService.registerUser({
       email,
@@ -22,11 +22,24 @@ const register = async (req, res, next) => {
       firstName,
       lastName,
       phone,
+      avatar,
     });
 
     const { refreshToken, ...payload } = result;
     res.cookie("refreshToken", refreshToken, refreshTokenCookieOptions);
     return sendCreated(res, result, "User registered successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getAvatarOptions = async (req, res, next) => {
+  try {
+    const options = authService.getAvatarOptions();
+    return sendSuccess(res, {
+      message: 'Avatar options retrieved successfully',
+      data: options,
+    });
   } catch (error) {
     next(error);
   }
@@ -63,8 +76,11 @@ const refreshToken = async (req, res, next) => {
     }
 
     const result = await authService.refreshAccessToken(refreshToken);
-    console.log("result in refreshToken in authController:\n", result)
-    return sendSuccess(res, { message: "Token refreshed", data: result.accessToken });
+    console.log("result in refreshToken in authController:\n", result);
+    return sendSuccess(res, {
+      message: "Token refreshed",
+      data: result.accessToken,
+    });
   } catch (error) {
     next(error);
   }
@@ -122,4 +138,5 @@ module.exports = {
   logout,
   forgotPassword,
   resetPassword,
+  getAvatarOptions,
 };
