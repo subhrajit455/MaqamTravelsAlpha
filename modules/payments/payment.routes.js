@@ -77,6 +77,14 @@ router.post(
 );
 
 router.get(
+  '/paypal/order/:orderId',
+  authenticate,
+  paymentValidator.validatePayPalOrderId,
+  validate,
+  paypalController.getPaymentStatusByOrderId
+);
+
+router.get(
   '/paypal/:paymentId',
   authenticate,
   paymentValidator.validatePaymentId,

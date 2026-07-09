@@ -84,7 +84,51 @@ const getPaymentStatus = async (req, res, next) => {
     // Access control: Ensure user owns this payment record or holds administrator privileges
     const isOwner = payment.userId.toString() === userId.toString();
     const isAdmin = ['admin', 'super_admin'].includes(req.user?.role);
-    
+
+    if (!isOwner && !isAdmin) {
+      return sendForbidden(res, 'Unauthorized access to this payment resource');
+    }
+
+    return sendSuccess(res, {
+      message: 'Payment details retrieved successfully',
+      data: {
+        paymentId: payment._id,
+        paypalOrderId: payment.gatewayData?.orderId,
+        paypalCaptureId: payment.gatewayData?.captureId,
+        amount: payment.amount,
+        currency: payment.currency,
+        status: payment.status,
+        refunds: payment.refunds,
+        totalRefunded: payment.totalRefunded,
+        verifiedAt: payment.verifiedAt,
+        paidAt: payment.paidAt,
+        createdAt: payment.createdAt,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/v1/payments/paypal/order/:orderId
+ * Get payment status details by PayPal order ID
+ */
+const getPaymentStatusByOrderId = async (req, res, next) => {
+  try {
+    const { orderId } = req.params;
+    const userId = req.user?.id || req.user?._id;
+    const correlationId = req.correlationId;
+
+    logger.info(`[PayPal Controller] Fetching payment status by orderId: ${orderId}`, { correlationId });
+
+    const payment = await Payment.findOne({ 'gatewayData.orderId': orderId });
+    if (!payment) {
+      return sendNotFound(res, 'Payment not found for the provided PayPal order ID');
+    }
+
+    const isOwner = payment.userId.toString() === userId.toString();
+    const isAdmin = ['admin', 'super_admin'].includes(req.user?.role);
     if (!isOwner && !isAdmin) {
       return sendForbidden(res, 'Unauthorized access to this payment resource');
     }
@@ -150,5 +194,6 @@ module.exports = {
   createPaymentOrder,
   capturePayment,
   getPaymentStatus,
+  getPaymentStatusByOrderId,
   refundPayment,
 };

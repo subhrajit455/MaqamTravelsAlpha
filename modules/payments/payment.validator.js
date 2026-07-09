@@ -86,6 +86,13 @@ const validateRefundRequest = [
     .withMessage('Refund amount must be a positive number greater than 0'),
 ];
 
+const validatePayPalOrderId = [
+  param('orderId')
+    .trim()
+    .notEmpty()
+    .withMessage('PayPal Order ID is required'),
+];
+
 // PayPal Order Creation
 const validateCreatePayPalOrder = [
   ...validateIdempotencyKey,
@@ -145,6 +152,7 @@ module.exports = {
   validateRefundRequest,
   validateCreatePayPalOrder,
   validatePayPalApprove,
+  validatePayPalOrderId,
   validateCreatePhonePeOrder,
   validatePhonePeCallback,
 };

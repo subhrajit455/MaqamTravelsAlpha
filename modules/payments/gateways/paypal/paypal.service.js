@@ -7,6 +7,7 @@ const { resolveBooking } = require('../../bookingResolver');
 const { withLock } = require('../../distributedLock');
 const { withTransaction } = require('../../transactionHelper');
 const auditLogService = require('../../auditLog.service');
+const { getBookingAmount, ensureBookingConfirmed } = require('../../bookingSync');
 
 // Conversion rate factor if native booking currency is not supported by PayPal (e.g. INR -> USD)
 const CONVERSION_RATE = parseFloat(process.env.PAYPAL_CONVERSION_RATE || '0.012');
@@ -22,10 +23,13 @@ const createPaymentOrder = async (userId, bookingId, bookingType, correlationId 
     // 1. Fetch booking details via dynamic resolver
     const booking = await resolveBooking(bookingId, bookingType);
 
-    // Verify booking ownership
-    const bookingUserId = booking.user?._id || booking.user;
-    if (bookingUserId.toString() !== userId.toString()) {
-      throw new AppError('Unauthorized to pay for this booking', 403);
+    // Verify booking ownership for user-specific booking types
+    const bookingUserId = booking.user?._id || booking.userId?._id || booking.user || booking.userId;
+    const bookingUserIdString = bookingUserId && bookingUserId.toString ? bookingUserId.toString() : null;
+    if (bookingType !== 'package') {
+      if (!bookingUserIdString || bookingUserIdString !== userId.toString()) {
+        throw new AppError('Unauthorized to pay for this booking', 403);
+      }
     }
 
     // 2. Prevent payment if already confirmed/paid
@@ -40,6 +44,7 @@ const createPaymentOrder = async (userId, bookingId, bookingType, correlationId 
     // 3. Prevent duplicate active checkout processes (idempotent reuse)
     const existingPending = await Payment.findOne({
       bookingId,
+      paymentMethod: 'paypal',
       status: { $in: [PAYMENT_STATUS.CREATED, PAYMENT_STATUS.PENDING] },
       expiresAt: { $gt: new Date() },
     });
@@ -53,10 +58,11 @@ const createPaymentOrder = async (userId, bookingId, bookingType, correlationId 
         currency: existingPending.currency,
         bookingId,
         bookingType,
+        redirectUrl: existingPending.gatewayData.redirectUrl,
       };
     }
 
-    const nativeAmount = booking.totalAmount || booking.details?.totalPrice || 0;
+    const nativeAmount = getBookingAmount(booking, bookingType);
     if (nativeAmount <= 0) {
       throw new AppError('Invalid booking amount', 400);
     }
@@ -93,6 +99,7 @@ const createPaymentOrder = async (userId, bookingId, bookingType, correlationId 
       status: PAYMENT_STATUS.CREATED,
       gatewayData: {
         orderId: orderData.orderId,
+        redirectUrl: orderData.redirectUrl,
         raw: orderData.raw,
       },
       correlationId,
@@ -182,18 +189,8 @@ const captureAndVerifyPayment = async (orderId, userId = null, correlationId = '
 
       await payment.save({ session });
 
-      // Resolve and update target Booking
-      const booking = await resolveBooking(payment.bookingId, payment.bookingType);
-
-      // Enforce lock ownership if user context is supplied
-      if (userId && booking.user?._id.toString() !== userId.toString()) {
-        throw new AppError('Unauthorized access to booking update', 403);
-      }
-
-      booking.status = 'confirmed';
-      booking.paypalPaymentId = captureData.transactionId;
-      booking.paymentId = payment._id;
-      await booking.save({ session });
+      // Update booking and master booking status in a shared helper
+      await ensureBookingConfirmed(payment, session);
 
       // Record Audit trail
       await auditLogService.record({

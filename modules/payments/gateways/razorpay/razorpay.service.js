@@ -7,6 +7,7 @@ const { resolveBooking } = require('../../bookingResolver');
 const { withLock } = require('../../distributedLock');
 const { withTransaction } = require('../../transactionHelper');
 const auditLogService = require('../../auditLog.service');
+const { getBookingAmount, ensureBookingConfirmed } = require('../../bookingSync');
 
 /**
  * ─── RAZORPAY SERVICE ──────────────────────────────────
@@ -26,8 +27,10 @@ const createPaymentOrder = async (userId, bookingId, bookingType, correlationId 
 
     // Verify booking ownership
     const bookingUserId = booking.user?._id || booking.user;
-    if (bookingUserId.toString() !== userId.toString()) {
-      throw new AppError('Unauthorized to pay for this booking', 403);
+    if (bookingType !== 'package') {
+      if (bookingUserId.toString() !== userId.toString()) {
+        throw new AppError('Unauthorized to pay for this booking', 403);
+      }
     }
 
     // 2. Prevent payment if already confirmed/paid
@@ -42,6 +45,7 @@ const createPaymentOrder = async (userId, bookingId, bookingType, correlationId 
     // 3. Prevent duplicate active checkout processes (idempotent reuse)
     const existingPending = await Payment.findOne({
       bookingId,
+      paymentMethod: 'razorpay',
       status: { $in: [PAYMENT_STATUS.CREATED, PAYMENT_STATUS.PENDING] },
       expiresAt: { $gt: new Date() },
     });
@@ -59,19 +63,23 @@ const createPaymentOrder = async (userId, bookingId, bookingType, correlationId 
       };
     }
 
-    const amount = booking.totalAmount || booking.details?.totalPrice || 0;
+    const amount = getBookingAmount(booking, bookingType);
     if (amount <= 0) {
       throw new AppError('Invalid booking amount', 400);
     }
 
     // 4. Create Razorpay order
+    const customerName = booking.user?.name || booking.userId?.name || booking.guestName || 'Customer';
+    const customerEmail = booking.user?.email || booking.userId?.email || booking.guestEmail || '';
+    const customerPhone = booking.user?.phone || booking.userId?.phone || booking.guestPhone || '';
+
     const orderData = await razorpayClient.orders.create(
       amount,
       bookingId,
       {
-        name: booking.user.name,
-        email: booking.user.email,
-        phone: booking.user.phone,
+        name: customerName,
+        email: customerEmail,
+        phone: customerPhone,
       }
     );
 
@@ -167,7 +175,7 @@ const verifyAndProcessPayment = async (orderId, paymentId, signature, correlatio
     return await withTransaction(async (session) => {
       // Refresh record inside transaction session
       const payment = await Payment.findById(initialPayment._id).session(session);
-      
+
       const previousState = payment.status;
 
       // Update payment record details
@@ -177,16 +185,11 @@ const verifyAndProcessPayment = async (orderId, paymentId, signature, correlatio
       payment.paidAt = new Date();
       payment.verifiedAt = new Date();
       payment.gatewayData.raw = paymentDetails;
-      
+
       await payment.save({ session });
 
-      // Resolve and update target Booking status to confirmed
-      const booking = await resolveBooking(payment.bookingId, payment.bookingType);
-      
-      booking.status = 'confirmed';
-      booking.razorpayPaymentId = paymentId;
-      booking.paymentId = payment._id;
-      await booking.save({ session });
+      // Resolve and update target Booking status and master Booking if present
+      await ensureBookingConfirmed(payment, session);
 
       // Record Audit trail
       await auditLogService.record({
@@ -235,7 +238,7 @@ const processSuccessfulPayment = async (paymentId, correlationId = '') => {
         const bookingOrchestrator = require('../../../../utils/bookingOrchestrator');
         const FlightBooking = require('../../../flights/flight.model');
         const booking = await FlightBooking.findById(payment.bookingId);
-        
+
         if (booking && !booking.isLCC) {
           logger.info(`[Razorpay Service] Initiating GDS Ticketing for flight booking: ${booking._id}`);
           await bookingOrchestrator.processTicketing(booking._id);
@@ -309,10 +312,10 @@ const refundPayment = async (paymentId, amount = null, reason = 'Booking cancell
       });
 
       payment.totalRefunded = parseFloat((payment.totalRefunded + refundAmount).toFixed(2));
-      
+
       const isFullyRefunded = payment.totalRefunded >= payment.amount;
       payment.status = isFullyRefunded ? PAYMENT_STATUS.REFUNDED : PAYMENT_STATUS.PARTIALLY_REFUNDED;
-      
+
       await payment.save({ session });
 
       // If fully refunded, cancel booking

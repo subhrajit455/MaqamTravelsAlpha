@@ -1,33 +1,33 @@
 require('dotenv').config();
 require('express-async-errors');
 
-const express      = require('express');
-const cors         = require('cors');
-const helmet       = require('helmet');
-const morgan       = require('morgan');
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 
-const { apiLimiter }   = require('./middleware/rateLimiter');
+const { apiLimiter } = require('./middleware/rateLimiter');
 const { errorHandler } = require('./middleware/errorHandler');
-const logger           = require('./utils/logger');
+const logger = require('./utils/logger');
 const correlationIdMiddleware = require('./middleware/correlationId');
 
 // ─── Module Route imports (new structure) ─────────────────
-const authRoutes    = require('./modules/auth/auth.routes');
-const hotelRoutes   = require('./modules/hotels/hotel.routes');
-const flightRoutes  = require('./modules/flights/flight.routes');
+const authRoutes = require('./modules/auth/auth.routes');
+const hotelRoutes = require('./modules/hotels/hotel.routes');
+const flightRoutes = require('./modules/flights/flight.routes');
 const bookingRoutes = require('./modules/bookings/booking.routes');
-const tourRoutes    = require('./modules/tours/tour.routes');
+const tourRoutes = require('./modules/tours/tour.routes');
 const packageRoutes = require('./modules/packages/package.routes');
 const paymentRoutes = require('./modules/payments/payment.routes');
 const accountRoutes = require('./modules/account/account.routes');
-const cmsRoutes     = require('./modules/cms/cms.routes');
-const crmRoutes     = require('./modules/crm/crm.routes');
+const cmsRoutes = require('./modules/cms/cms.routes');
+const crmRoutes = require('./modules/crm/crm.routes');
 
 // ─── Webhook Routes (public, no auth required) ────────────
 const razorpayWebhook = require('./webhook/razorpay/razorpay.webhook');
-const paypalWebhook   = require('./modules/payments/gateways/paypal/paypal.webhook');
-const phonepeWebhook  = require('./modules/payments/gateways/phonepe/phonepe.webhook');
+const paypalWebhook = require('./modules/payments/gateways/paypal/paypal.webhook');
+const phonepeWebhook = require('./modules/payments/gateways/phonepe/phonepe.webhook');
 
 const app = express();
 
@@ -49,7 +49,7 @@ app.use(helmet({
 }));
 
 // Configure parser to preserve raw request bodies for webhook verification checks
-app.use(express.json({ 
+app.use(express.json({
   limit: '10mb',
   verify: (req, res, buf) => {
     if (req.originalUrl && req.originalUrl.includes('/webhook')) {
@@ -63,8 +63,8 @@ app.use(cookieParser());
 // ─── Webhook Routes (BEFORE rate limiter, NO auth required) ─────
 // Webhooks need to be outside rate limiting
 app.use('/webhook/razorpay', razorpayWebhook);
-app.use('/webhook/paypal',   paypalWebhook);
-app.use('/webhook/phonepe',  phonepeWebhook);
+app.use('/webhook/paypal', paypalWebhook);
+app.use('/webhook/phonepe', phonepeWebhook);
 
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
@@ -79,20 +79,51 @@ app.use('/api', apiLimiter);
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    env:    process.env.NODE_ENV,
+    env: process.env.NODE_ENV,
     uptime: process.uptime(),
   });
 });
 
-app.use('/api/v1/auth',     authRoutes);
-app.use('/api/v1/hotels',   hotelRoutes);
-app.use('/api/v1/flights',  flightRoutes);
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/hotels', hotelRoutes);
+app.use('/api/v1/flights', flightRoutes);
 app.use('/api/v1/bookings', bookingRoutes);
-app.use('/api/v1/tours',    tourRoutes);
+app.use('/api/v1/tours', tourRoutes);
 app.use('/api/v1/packages', packageRoutes);
 app.use('/api/v1/payments', paymentRoutes);
-app.use('/api/v1/account',  accountRoutes);
-app.use('/api/v1/cms',      cmsRoutes);
+app.use('/api/v1/account', accountRoutes);
+app.use('/api/v1/cms', cmsRoutes);
+
+// ─── PayPal Redirect Landing Pages ─────────────────────────
+// When no SPA frontend is available, the backend can still render a lightweight status page.
+app.get('/payment/paypal/success', (req, res) => {
+  const { token, PayerID, bookingId } = req.query;
+  const orderId = token || req.query.orderId || '';
+
+  return res.status(200).send(`<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>PayPal Payment Success</title></head>
+<body>
+  <h1>PayPal Redirect Successful</h1>
+  <p>Booking ID: ${bookingId || 'N/A'}</p>
+  <p>Order ID: ${orderId || 'N/A'}</p>
+  <p>To complete the payment capture, call <code>POST /api/v1/payments/paypal/capture</code> with <code>{ "orderId": "${orderId}" }</code> from an authenticated client.</p>
+</body>
+</html>`);
+});
+
+app.get('/payment/paypal/cancel', (req, res) => {
+  const { bookingId } = req.query;
+  return res.status(200).send(`<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>PayPal Payment Cancelled</title></head>
+<body>
+  <h1>PayPal Payment Cancelled</h1>
+  <p>Booking ID: ${bookingId || 'N/A'}</p>
+  <p>The PayPal checkout was cancelled. You may retry payment from your booking page.</p>
+</body>
+</html>`);
+});
 
 // ─── CRM Routes (prefix-gated — mounts only when slug matches) ──
 // The actual CRM route file checks the prefix at the middleware level too
@@ -105,21 +136,6 @@ app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });
 });
 
-
-app.get('/payment/paypal/success', (req, res) => {
-  const { bookingId, token, PayerID } = req.query;
-  res.send(`
-    <h1>PayPal approved</h1>
-    <p>Booking: ${`6a4ca49b2f0c1341fac8f57e`}</p>
-    <p>PayPal token/orderId: ${`5T9831604D7938739`}</p>
-    <p>PayerID: ${`6a4b9b7ebafd9510f378aec3`}</p>
-    <p>Now call /api/v1/payments/paypal/capture with orderId=${`5T9831604D7938739`}</p>
-  `);
-});
-
-app.get('/payment/paypal/cancel', (req, res) => {
-  res.send('<h1>PayPal payment cancelled</h1>');
-});
 
 // ─── Global Error Handler (must be last) ──────────────────
 app.use(errorHandler);

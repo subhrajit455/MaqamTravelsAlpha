@@ -1,10 +1,10 @@
 const Payment = require('../../payment.model');
-const FlightBooking = require('../../../flights/flight.model');
-const HotelBooking = require('../../../hotels/hotel.model');
+const { resolveBooking } = require('../../bookingResolver');
 const phonePeClient = require('./phonepe.client');
 const logger = require('../../../../utils/logger');
 const { AppError } = require('../../../../middleware/errorHandler');
 const { PAYMENT_STATUS } = require('../../../../config/constants');
+const { getBookingAmount, ensureBookingConfirmed } = require('../../bookingSync');
 
 /**
  * ─── PHONEPE SERVICE ──────────────────────────────────
@@ -24,20 +24,18 @@ const createPaymentRequest = async (userId, bookingId, bookingType) => {
     try {
         logger.info(`[PhonePe Service] Creating payment request - User: ${userId}, Booking: ${bookingId}`);
 
-        // 1. Fetch booking details
-        let booking;
-        if (bookingType === 'flight') {
-            booking = await FlightBooking.findById(bookingId).populate('user', 'email phone name');
-        } else if (bookingType === 'hotel') {
-            booking = await HotelBooking.findById(bookingId).populate('user', 'email phone name');
-        }
+        // 1. Fetch booking details from dynamic resolver
+        const booking = await resolveBooking(bookingId, bookingType);
 
         if (!booking) {
             throw new AppError('Booking not found', 404);
         }
 
-        if (booking.user._id.toString() !== userId) {
-            throw new AppError('Unauthorized to pay for this booking', 403);
+        const bookingUserId = booking.user?._id || booking.userId?._id || booking.user || booking.userId;
+        if (bookingType !== 'package') {
+            if (!bookingUserId || bookingUserId.toString() !== userId.toString()) {
+                throw new AppError('Unauthorized to pay for this booking', 403);
+            }
         }
 
         // 2. Check if already paid
@@ -51,19 +49,23 @@ const createPaymentRequest = async (userId, bookingId, bookingType) => {
         }
 
         // 3. Get amount
-        const amount = booking.totalAmount || 0;
+        const amount = getBookingAmount(booking, bookingType);
         if (amount <= 0) {
             throw new AppError('Invalid booking amount', 400);
         }
 
         // 4. Create PhonePe payment request
+        const customerName = booking.user?.name || booking.userId?.name || booking.guestName || 'Customer';
+        const customerEmail = booking.user?.email || booking.userId?.email || booking.guestEmail || '';
+        const customerPhone = booking.user?.phone || booking.userId?.phone || booking.guestPhone || '';
+
         const paymentRequest = await phonePeClient.payments.create(
             amount,
             bookingId,
             {
-                name: booking.user.name,
-                email: booking.user.email,
-                phone: booking.user.phone,
+                name: customerName,
+                email: customerEmail,
+                phone: customerPhone,
             }
         );
 
@@ -71,10 +73,14 @@ const createPaymentRequest = async (userId, bookingId, bookingType) => {
         const payment = await Payment.create({
             userId,
             bookingId,
+            bookingModel: booking.constructor.modelName,
             bookingType,
             amount,
             currency: 'INR',
             paymentMethod: 'phonepe',
+            gatewayData: {
+                transactionId: paymentRequest.transactionId,
+            },
             phonePeTransactionId: paymentRequest.transactionId,
             status: PAYMENT_STATUS.PENDING,
         });
@@ -119,7 +125,8 @@ const verifyPaymentCallback = async (transactionId, paymentId) => {
             {
                 status: PAYMENT_STATUS.PAID,
                 verifiedAt: new Date(),
-                transactionId,
+                'gatewayData.transactionId': transactionId,
+                phonePeTransactionId: transactionId,
             },
             { new: true }
         );
@@ -159,19 +166,16 @@ const processSuccessfulPayment = async (paymentId) => {
         }
 
         // Update booking
-        const booking = payment.bookingId;
-        booking.status = 'confirmed';
-        booking.phonePeTransactionId = payment.phonePeTransactionId;
-        await booking.save();
+        await ensureBookingConfirmed(payment);
 
-        logger.info(`[PhonePe Service] Booking confirmed - ID: ${booking._id}`);
+        logger.info(`[PhonePe Service] Booking confirmed - Payment: ${payment._id}`);
 
         // TODO: Call GDS ticketing, send notifications
 
         return {
             success: true,
             paymentId: payment._id,
-            bookingId: booking._id,
+            bookingId: payment.bookingId,
             status: 'confirmed',
         };
     } catch (error) {

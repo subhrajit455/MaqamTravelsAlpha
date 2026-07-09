@@ -65,19 +65,19 @@ const getAccessToken = async () => {
     httpsAgent,
     timeout: 10000,
   })
-  .then((response) => {
-    tokenCache.token = response.data.access_token;
-    // Expire 5 minutes early to avoid transient race conditions
-    tokenCache.expiresAt = Date.now() + (response.data.expires_in - 300) * 1000;
-    tokenCache.pendingPromise = null;
-    return tokenCache.token;
-  })
-  .catch((error) => {
-    tokenCache.pendingPromise = null;
-    const errMsg = error.response?.data?.error_description || error.message;
-    logger.error(`[PayPal Adapter] Authentication failed: ${errMsg}`);
-    throw new AppError(`PayPal Authentication failed: ${errMsg}`, 500);
-  });
+    .then((response) => {
+      tokenCache.token = response.data.access_token;
+      // Expire 5 minutes early to avoid transient race conditions
+      tokenCache.expiresAt = Date.now() + (response.data.expires_in - 300) * 1000;
+      tokenCache.pendingPromise = null;
+      return tokenCache.token;
+    })
+    .catch((error) => {
+      tokenCache.pendingPromise = null;
+      const errMsg = error.response?.data?.error_description || error.message;
+      logger.error(`[PayPal Adapter] Authentication failed: ${errMsg}`);
+      throw new AppError(`PayPal Authentication failed: ${errMsg}`, 500);
+    });
 
   return tokenCache.pendingPromise;
 };
@@ -93,12 +93,12 @@ const getAccessToken = async () => {
 const createOrder = async (amount, bookingId, currency = 'USD', idempotencyKey = '') => {
   try {
     logger.info(`[PayPal Adapter] Creating order for booking: ${bookingId}, amount: ${amount} ${currency}`);
-    
+
     const token = await getAccessToken();
 
     // Use a wrapper retry execution ONLY for this network attempt, if safe
     const executePost = async () => {
-      return await paypalClient.post('/v2/checkout/orders', 
+      return await paypalClient.post('/v2/checkout/orders',
         {
           intent: 'CAPTURE',
           purchase_units: [{
@@ -113,8 +113,8 @@ const createOrder = async (amount, bookingId, currency = 'USD', idempotencyKey =
           application_context: {
             brand_name: 'Maqam Travels',
             user_action: 'PAY_NOW',
-            return_url: `${process.env.CLIENT_URL || 'http://localhost:3000'}/payment/paypal/success?bookingId=${bookingId}`,
-            cancel_url: `${process.env.CLIENT_URL || 'http://localhost:3000'}/payment/paypal/cancel?bookingId=${bookingId}`,
+            return_url: `${process.env.PAYPAL_RETURN_URL_BASE || process.env.CLIENT_URL || `http://localhost:${process.env.PORT || 5000}`}/payment/paypal/success?bookingId=${bookingId}`,
+            cancel_url: `${process.env.PAYPAL_RETURN_URL_BASE || process.env.CLIENT_URL || `http://localhost:${process.env.PORT || 5000}`}/payment/paypal/cancel?bookingId=${bookingId}`,
           }
         },
         {
@@ -161,11 +161,11 @@ const createOrder = async (amount, bookingId, currency = 'USD', idempotencyKey =
 const capturePayment = async (orderId, idempotencyKey = '') => {
   try {
     logger.info(`[PayPal Adapter] Capturing order: ${orderId}`);
-    
+
     const token = await getAccessToken();
 
     // POST captures are NOT safe to blindly retry without an idempotency key header
-    const response = await paypalClient.post(`/v2/checkout/orders/${orderId}/capture`, 
+    const response = await paypalClient.post(`/v2/checkout/orders/${orderId}/capture`,
       {},
       {
         headers: {
@@ -213,7 +213,7 @@ const capturePayment = async (orderId, idempotencyKey = '') => {
 const refundPayment = async (captureId, amount, currency = 'USD', reason = 'Booking cancelled', idempotencyKey = '') => {
   try {
     logger.info(`[PayPal Adapter] Processing refund for capture: ${captureId}, amount: ${amount || 'FULL'}`);
-    
+
     const token = await getAccessToken();
     const payload = {};
 
@@ -227,7 +227,7 @@ const refundPayment = async (captureId, amount, currency = 'USD', reason = 'Book
       payload.note_to_payer = reason.substring(0, 255); // PayPal notes length limit
     }
 
-    const response = await paypalClient.post(`/v2/payments/captures/${captureId}/refund`, 
+    const response = await paypalClient.post(`/v2/payments/captures/${captureId}/refund`,
       payload,
       {
         headers: {
@@ -263,7 +263,7 @@ const refundPayment = async (captureId, amount, currency = 'USD', reason = 'Book
 const getPaymentDetails = async (orderId) => {
   try {
     logger.info(`[PayPal Adapter] Fetching details for order: ${orderId}`);
-    
+
     const token = await getAccessToken();
 
     const fetchDetails = async () => {
