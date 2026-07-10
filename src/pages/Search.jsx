@@ -199,7 +199,7 @@ const SearchPage = () => {
           {data.length === 0 ? (
             <div className="text-center text-gray-600 mt-16 h-screen flex flex-col items-center gap-4">
               No hotels found. Try a different search term.
-            </div> 
+            </div>
           ) : (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
               {data.map((item, i) => (

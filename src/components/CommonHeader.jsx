@@ -15,7 +15,7 @@ import image03 from "../assets/image03.jpg";
 import image04 from "../assets/image04.jpg";
 import image05 from "../assets/image05.jpg";
 
-const heroImages = [image01, image02, image03, image04];
+const heroImages = [image01, image03, image04];
 
 const CommonHeader = ({ title }) => {
   const navigator = useNavigate();
@@ -42,7 +42,7 @@ const CommonHeader = ({ title }) => {
 
   return (
     <div
-      className="relative h-[420px] bg-cover bg-center flex flex-col items-center font-poppins"
+      className="relative h-[460px] bg-cover bg-center flex flex-col items-center font-poppins"
       // style={{ backgroundImage: `url(${heroImages[currentImage]})` }}
     >
       <div className="absolute inset-0 overflow-hidden">
@@ -63,20 +63,24 @@ const CommonHeader = ({ title }) => {
           ))}
         </div>
 
-        <div className="absolute inset-0 bg-black/40" />
+        {/* <div className="absolute inset-0 bg-black/40" /> */}
       </div>
       {/* Overlay */}
-      <div className="absolute inset-0 bg-black/40"></div>
+      {/* <div className="absolute inset-0 bg-black/40"></div> */}
 
       {/* Navbar */}
-      <div className="relative z-10 w-[95%] sm:w-[92%] md:w-[90%] lg:w-[85%] mt-4 sm:mt-6 bg-white/90 backdrop-blur-md rounded-full px-3 sm:px-4 md:px-6 py-2 sm:py-3 flex items-center justify-between shadow-lg gap-2">
+      <div className="relative z-10 w-[95%] sm:w-[92%] md:w-[90%] lg:w-[100%] mt-4 sm:mt-6 px-3 sm:px-4 md:px-6 py-2 sm:py-3 flex items-center justify-between  gap-2">
         {/* Logo */}
         <NavLink to="/">
-          <img src={Logo} alt="logo" className="h-6 sm:h-7 md:h-8" />
+          <img
+            src={Logo}
+            alt="logo"
+            className="h-6 sm:h-7 md:h-8 w-48 xm:h-64 object-contain"
+          />
         </NavLink>
 
         {/* Desktop Menu */}
-        <div className="hidden md:flex items-center gap-8 lg:gap-12">
+        {/* <div className="hidden md:flex items-center gap-8 lg:gap-12">
           {menu.map((item, index) => {
             const Icon = item.icon;
 
@@ -97,7 +101,7 @@ const CommonHeader = ({ title }) => {
               </NavLink>
             );
           })}
-        </div>
+        </div> */}
 
         {/* Right Side */}
         <div className="flex items-center gap-2 md:gap-3">
