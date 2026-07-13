@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const  {
+const {
   searchFlights,
   getFareQuote,
   book
@@ -7,7 +7,7 @@ const  {
 const flightValidator = require('./flight.validator');
 const validate = require('../../middleware/validate');
 const { searchLimiter } = require('../../middleware/rateLimiter');
-const { authenticate } = require('../../middleware/authenticate');
+const { authenticate } = require('../../middleware/auth');
 /**
  * @openapi
  * /api/v1/flights/search:
@@ -44,7 +44,7 @@ router.post('/search', searchLimiter, flightValidator.validateSearch(), validate
  *       200:
  *         description: Fare quote returned successfully
  */
-router.post('/farequote', flightValidator.validateFlightId(), validate,  getFareQuote);
+router.post('/farequote', flightValidator.validateFlightId(), validate, getFareQuote);
 
 /**
  * @openapi
@@ -56,7 +56,7 @@ router.post('/farequote', flightValidator.validateFlightId(), validate,  getFare
  *       200:
  *         description: Booking created successfully
  */
-router.post('/book', flightValidator.validateFlightId(), validate, authenticate,  book);
+router.post('/book', flightValidator.validateFlightId(), validate, authenticate, book);
 
 // TODO: Create booking, get my bookings — implement with booking service
 

@@ -31,28 +31,8 @@ const phonepeWebhook = require('./modules/payments/gateways/phonepe/phonepe.webh
 
 // SWAGGER SETUP
 const swaggerUi = require('swagger-ui-express');
-const swaggerJSDoc = require('swagger-jsdoc');
+const swaggerDocument = require('./swagger/swagger');
 
-const swaggerDocument = swaggerJSDoc({
-  definition: {
-    openapi: '3.0.0',
-    info: {
-      title: 'Travel Booking API',
-      version: '1.0.0',
-      description: 'API documentation for the Travel Booking platform',
-    },
-    servers: [
-      { url: 'http://localhost:5000', description: 'Local development server' },
-    ],
-    tags: [
-      { name: 'Health', description: 'Health and status endpoints' },
-      { name: 'Auth', description: 'Authentication and account access' },
-      { name: 'Flights', description: 'Flight search, fares, and booking' },
-      { name: 'Bookings', description: 'Booking lifecycle operations' },
-    ],
-  },
-  apis: ['./app.js', './modules/**/*.js'],
-});
 
 const app = express();
 
