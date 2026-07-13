@@ -2,31 +2,55 @@
 sidebar_position: 7
 ---
 
-# API Reference
+# API Reference and OpenAPI Coverage
 
-The detailed endpoint reference for the MaqamTravels REST API is served interactively via the Swagger (OpenAPI 3.0) UI hosted on our API servers.
+The interactive API reference is served by the backend:
 
-## Accessing the Swagger UI
+- Local: `http://localhost:5000/api/docs`
+- Raw OpenAPI JSON: `http://localhost:5000/api/docs.json`
 
-* **Local Environment:** [http://localhost:5000/api/docs](http://localhost:5000/api/docs)
-* **Staging Server:** [https://staging-api.maqamtravels.com/api/docs](https://staging-api.maqamtravels.com/api/docs)
-* **Production Gateway:** [https://api.maqamtravels.com/api/docs](https://api.maqamtravels.com/api/docs)
+Swagger is generated from JSDoc annotations in route files plus reusable YAML components under `swagger/components/`. It is the intended API contract, but it is not yet complete.
 
-To view the raw compiled OpenAPI specification JSON schema, request the docs payload directly:
-`GET /api/docs.json` (e.g., [http://localhost:5000/api/docs.json](http://localhost:5000/api/docs.json)).
+## Current coverage
 
----
+The generated specification currently contains 11 paths:
 
-## Design Choices & Best Practices
+| Area | Documented paths |
+| --- | ---: |
+| Health | 1 |
+| Authentication | 7 |
+| Flights | 3 |
+| Hotels, account, bookings, tours, packages, payments, CMS, CRM | 0 |
 
-We deliberately avoid copy-pasting API route details (parameters, request bodies, HTTP codes) inside Docusaurus markdown files. The reasons for this architecture include:
+The following mounted route groups exist in the application but are absent from the OpenAPI document: `/api/v1/hotels`, `/account`, `/bookings`, `/tours`, `/packages`, `/payments`, `/cms`, and the configurable CRM prefix. Payment webhooks are also not documented.
 
-1. **Elimination of Duplication:** Specifying endpoint parameters in both code schemas and markdown files creates documentation drift.
-2. **Single Source of Truth:** Route changes, validations, and body schemas are updated inside the code JSDoc blocks. Rebuilding or deploying the backend automatically updates the Swagger schema.
-3. **Interactive Sandboxing:** Developers can execute live API calls (e.g., testing authentication flow or fetching flights) using the **Try it out** button directly in the browser, which is not possible in static markdown pages.
+Do not use Swagger alone to conclude that an undocumented endpoint does not exist. Conversely, do not publish an endpoint as supported merely because a route is registered: its provider integration and business flow must be complete.
 
----
+## Authentication
 
-## Swagger Schema Validation
+The API has a global Bearer JWT security requirement. Routes that are intentionally public must explicitly set `security: []` in their OpenAPI block. Authenticated requests use:
 
-When adding new routes, verify that your OpenAPI blocks are correct. If an invalid reference is specified (e.g., referencing a missing `$ref` schema), the Swagger UI console will show schema rendering errors. Always check the browser inspector when loading the Swagger page locally.
+```http
+Authorization: Bearer <access-token>
+```
+
+The login and refresh-token flows also use an HttpOnly refresh-token cookie. Cross-origin clients must send credentials only from an allowed origin.
+
+## Response conventions
+
+Controllers generally use the helpers in `utils/apiResponse.js`. New OpenAPI responses should describe the actual success/error envelope used by the controller, including validation failures, authentication errors, ownership/permission errors, provider failures, and rate-limit responses.
+
+## Adding a route to Swagger
+
+1. Add an `@openapi` block directly above the route declaration.
+2. Use the final mounted path, for example `/api/v1/hotels/search`, not a router-relative path.
+3. Declare every request parameter and body field enforced by the validator.
+4. Mark authentication accurately and reference `BearerAuth` for protected routes.
+5. Reuse shared schemas where they fit; add a module schema when they do not.
+6. Add success and realistic failure responses.
+7. Verify the generated `/api/docs.json` and the Swagger UI.
+8. Add an automated assertion that the path is present in the generated specification.
+
+## Priority for the hotel work
+
+Before implementing a hotel booking endpoint, document and test the search request, the provider-normalized hotel/rate response, revalidation/hold semantics, reservation request, cancellation policy, and the final booking/voucher response. See [Hotels Module](./modules/hotels.md) for the proposed implementation order.
