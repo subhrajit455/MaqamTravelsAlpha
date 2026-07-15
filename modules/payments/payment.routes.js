@@ -1,29 +1,142 @@
-const router = require('express').Router();
-const paymentController = require('./payment.controller');
+const express = require('express');
+const razorpayController = require("./gateways/razorpay/razorpay.controller");
+const paypalController = require("./gateways/paypal/paypal.controller");
+const phonepeController = require("./gateways/phonepe/phonepe.controller");
+
 const paymentValidator = require('./payment.validator');
 const validate = require('../../middleware/validate');
+const { authenticate } = require('../../middleware/auth');
+const { paymentLimiter } = require('../../middleware/rateLimiter');
+const idempotency = require('./idempotency.middleware');
+
+const router = express.Router();
 
 /**
  * ─── PAYMENT ROUTES ────────────────────────────────────
- * Pattern: Create payment, verify payment, refund
- * Requires auth middleware
+ * Unified multi-gateway payment endpoints.
+ * Mounts standard rate-limiting and request idempotency safeguards.
  */
 
-// TODO: Add auth middleware
+// ─── RAZORPAY ROUTES ───────────────────────────────────
+router.post(
+  '/razorpay/create-order',
+  authenticate,
+  paymentLimiter,
+  idempotency,
+  paymentValidator.validateCreatePaymentOrder,
+  validate,
+  razorpayController.createPaymentOrder
+);
 
-// Get payment details
-router.get('/:paymentId', paymentValidator.validatePaymentId(), validate, paymentController.getPaymentDetails);
+router.post(
+  '/razorpay/verify',
+  authenticate,
+  paymentLimiter,
+  paymentValidator.validateVerifyPayment,
+  validate,
+  razorpayController.verifyPayment
+);
 
-// Get user's payments
-router.get('/', paymentController.getMyPayments);
+router.get(
+  '/razorpay/:paymentId',
+  authenticate,
+  paymentValidator.validatePaymentId,
+  validate,
+  razorpayController.getPaymentStatus
+);
 
-// Create payment (initiate)
-router.post('/', paymentValidator.validateCreatePayment(), validate, paymentController.createPayment);
+router.post(
+  '/razorpay/:paymentId/refund',
+  authenticate,
+  paymentLimiter,
+  paymentValidator.validateRefundRequest,
+  validate,
+  razorpayController.refundPayment
+);
 
-// Verify payment (callback from Stripe/Razorpay)
-router.post('/verify', paymentValidator.validateVerifyPayment(), validate, paymentController.verifyPayment);
 
-// Request refund
-router.post('/:paymentId/refund', paymentValidator.validatePaymentId(), validate, paymentController.requestRefund);
+// ─── PAYPAL ROUTES ─────────────────────────────────────
+router.post(
+  '/paypal/create-order',
+  authenticate,
+  paymentLimiter,
+  idempotency,
+  paymentValidator.validateCreatePayPalOrder,
+  validate,
+  paypalController.createPaymentOrder
+);
+
+router.post(
+  '/paypal/capture',
+  authenticate,
+  paymentLimiter,
+  idempotency,
+  paymentValidator.validatePayPalApprove,
+  validate,
+  paypalController.capturePayment
+);
+
+router.get(
+  '/paypal/order/:orderId',
+  authenticate,
+  paymentValidator.validatePayPalOrderId,
+  validate,
+  paypalController.getPaymentStatusByOrderId
+);
+
+router.get(
+  '/paypal/:paymentId',
+  authenticate,
+  paymentValidator.validatePaymentId,
+  validate,
+  paypalController.getPaymentStatus
+);
+
+router.post(
+  '/paypal/:paymentId/refund',
+  authenticate,
+  paymentLimiter,
+  paymentValidator.validateRefundRequest,
+  validate,
+  paypalController.refundPayment
+);
+
+
+// ─── PHONEPE ROUTES ────────────────────────────────────
+router.post(
+  '/phonepe/create-order',
+  authenticate,
+  paymentLimiter,
+  idempotency,
+  paymentValidator.validateCreatePhonePeOrder,
+  validate,
+  phonepeController.createPaymentOrder
+);
+
+router.post(
+  '/phonepe/verify',
+  authenticate,
+  paymentLimiter,
+  paymentValidator.validatePhonePeCallback,
+  validate,
+  phonepeController.verifyPayment
+);
+
+router.get(
+  '/phonepe/:paymentId',
+  authenticate,
+  paymentValidator.validatePaymentId,
+  validate,
+  phonepeController.getPaymentStatus
+);
+
+router.post(
+  '/phonepe/:paymentId/refund',
+  authenticate,
+  paymentLimiter,
+  paymentValidator.validateRefundRequest,
+  validate,
+  phonepeController.refundPayment
+);
 
 module.exports = router;

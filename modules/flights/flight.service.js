@@ -19,7 +19,11 @@ const toCacheEntry = (o) => ({
 });
 
 const searchFlightsService = async ({
+<<<<<<< HEAD
   origin,
+=======
+  departure,
+>>>>>>> 204c8b51f9176295a728cea037af26b59d540007
   destination,
   departDate,
   returnDate,
@@ -27,12 +31,21 @@ const searchFlightsService = async ({
   journeyType,
 }) => {
   logger.info(
+<<<<<<< HEAD
     `Searching flights from ${origin} to ${destination} on ${departDate}`,
   );
   try {
     const data = await srdvAdapter.searchFlightsAdapter({
       origin,
       destination,
+=======
+    `Searching flights from ${departure} to ${arrival} on ${departDate}`,
+  );
+  try {
+    const data = await srdvAdapter.searchFlightsAdapter({
+      departure,
+      arrival,
+>>>>>>> 204c8b51f9176295a728cea037af26b59d540007
       departDate,
       returnDate,
       passengers,

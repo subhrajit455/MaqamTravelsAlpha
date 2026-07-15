@@ -1,5 +1,9 @@
 const router = require('express').Router();
+<<<<<<< HEAD
 const  {
+=======
+const {
+>>>>>>> 204c8b51f9176295a728cea037af26b59d540007
   searchFlights,
   getFareQuote,
   book
@@ -44,7 +48,11 @@ router.post('/search', searchLimiter, flightValidator.validateSearch(), validate
  *       200:
  *         description: Fare quote returned successfully
  */
+<<<<<<< HEAD
 router.post('/farequote', flightValidator.validateFlightId(), validate,  getFareQuote);
+=======
+router.post('/farequote', flightValidator.validateFlightId(), validate, getFareQuote);
+>>>>>>> 204c8b51f9176295a728cea037af26b59d540007
 
 /**
  * @openapi
@@ -56,7 +64,11 @@ router.post('/farequote', flightValidator.validateFlightId(), validate,  getFare
  *       200:
  *         description: Booking created successfully
  */
+<<<<<<< HEAD
 router.post('/book', flightValidator.validateFlightId(), validate, authenticate,  book);
+=======
+router.post('/book', flightValidator.validateFlightId(), validate, authenticate, book);
+>>>>>>> 204c8b51f9176295a728cea037af26b59d540007
 
 // TODO: Create booking, get my bookings — implement with booking service
 

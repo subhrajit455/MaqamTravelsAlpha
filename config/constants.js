@@ -13,7 +13,7 @@ const BOOKING_TYPES = {
   HOTEL:   'hotel',
   FLIGHT:  'flight',
   PACKAGE: 'package',
-  TOUR:    'custom_tour',
+  TOUR:    'tour',
 };
 
 // ─── Booking Statuses ─────────────────────────────────────
@@ -27,10 +27,18 @@ const BOOKING_STATUS = {
 
 // ─── Payment Statuses ─────────────────────────────────────
 const PAYMENT_STATUS = {
-  PENDING:  'pending',
-  PAID:     'paid',
-  FAILED:   'failed',
+  CREATED: 'created',
+  PENDING: 'pending',
+  AUTHORIZED: 'authorized',
+  CAPTURED: 'captured',
+  PAID: 'paid',
+  PARTIALLY_REFUNDED: 'partially_refunded',
   REFUNDED: 'refunded',
+  FAILED: 'failed',
+  EXPIRED: 'expired',
+  CANCELLED: 'cancelled',
+  CHARGEBACK: 'chargeback',
+  DISPUTED: 'disputed',
 };
 
 // ─── Custom Tour Statuses ─────────────────────────────────

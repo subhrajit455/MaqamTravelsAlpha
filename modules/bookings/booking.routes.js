@@ -1,7 +1,8 @@
-const router = require('express').Router();
-const bookingController = require('./booking.controller');
-const bookingValidator = require('./booking.validator');
-const validate = require('../../middleware/validate');
+const router = require("express").Router();
+const bookingController = require("./booking.controller");
+const bookingValidator = require("./booking.validator");
+const validate = require("../../middleware/validate");
+const { authenticate } = require("../../middleware/auth");
 
 /**
  * ─── BOOKING ROUTES ───────────────────────────────────

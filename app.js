@@ -1,73 +1,75 @@
 require('dotenv').config();
-require('express-async-errors'); 
+require('express-async-errors');
 
-const express      = require('express');
-const cors         = require('cors');
-const helmet       = require('helmet');
-const morgan       = require('morgan');
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 
-const { apiLimiter }   = require('./middleware/rateLimiter');
+const { apiLimiter } = require('./middleware/rateLimiter');
 const { errorHandler } = require('./middleware/errorHandler');
-const logger           = require('./utils/logger');
+const logger = require('./utils/logger');
+const correlationIdMiddleware = require('./middleware/correlationId');
 
 // ─── Module Route imports─────────────────
 const authRoutes    = require('./modules/auth/auth.routes');
 const hotelRoutes   = require('./modules/hotels/hotel.routes');
 const flightRoutes  = require('./modules/flights/flight.routes');
 const bookingRoutes = require('./modules/bookings/booking.routes');
-const tourRoutes    = require('./modules/tours/tour.routes');
-const {admin : adminPackageRoutes, customer : userPackageRoutes} = require('./modules/packages/package.routes');
+const tourRoutes = require('./modules/tours/tour.routes');
+const packageRoutes = require('./modules/packages/package.routes');
 const paymentRoutes = require('./modules/payments/payment.routes');
 const accountRoutes = require('./modules/account/account.routes');
-const cmsRoutes     = require('./modules/cms/cms.routes');
-const crmRoutes     = require('./modules/crm/crm.routes');
+const cmsRoutes = require('./modules/cms/cms.routes');
+const crmRoutes = require('./modules/crm/crm.routes');
+
+// ─── Webhook Routes (public, no auth required) ────────────
+const razorpayWebhook = require('./webhook/razorpay/razorpay.webhook');
+const paypalWebhook = require('./modules/payments/gateways/paypal/paypal.webhook');
+const phonepeWebhook = require('./modules/payments/gateways/phonepe/phonepe.webhook');
 
 // SWAGGER SETUP
 const swaggerUi = require('swagger-ui-express');
-const swaggerJSDoc = require('swagger-jsdoc');
+const swaggerDocument = require('./swagger/swagger');
 
-const swaggerDocument = swaggerJSDoc({
-  definition: {
-    openapi: '3.0.0',
-    info: {
-      title: 'Travel Booking API',
-      version: '1.0.0',
-      description: 'API documentation for the Travel Booking platform',
-    },
-    servers: [
-      { url: 'http://localhost:5000', description: 'Local development server' },
-    ],
-    tags: [
-      { name: 'Health', description: 'Health and status endpoints' },
-      { name: 'Auth', description: 'Authentication and account access' },
-      { name: 'Flights', description: 'Flight search, fares, and booking' },
-      { name: 'Bookings', description: 'Booking lifecycle operations' },
-    ],
-  },
-  apis: ['./app.js', './modules/**/*.js'],
-});
 
 const app = express();
+
+app.use(correlationIdMiddleware);
+
 app.use(cors({
   origin: [
-   
-      "http://192.168.0.123:5173", // For network access
-    "http://localhost:5173"  
+    'http://192.168.0.123:5173', // For network access
+    'http://localhost:5173',
   ],
-  credentials: true, 
+  credentials: true,
 }));
+
 // Force handle preflight requests globally
-app.options('*', cors()); 
+app.options('*', cors());
 
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-
-app.use(express.json({ limit: '10mb' }));
+// Configure parser to preserve raw request bodies for webhook verification checks
+app.use(express.json({
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    if (req.originalUrl && req.originalUrl.includes('/webhook')) {
+      req.rawBody = buf;
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// ─── Webhook Routes (BEFORE rate limiter, NO auth required) ─────
+// Webhooks need to be outside rate limiting
+app.use('/webhook/razorpay', razorpayWebhook);
+app.use('/webhook/paypal', paypalWebhook);
+app.use('/webhook/phonepe', phonepeWebhook);
 
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
@@ -103,7 +105,7 @@ app.use('/api', apiLimiter);
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    env:    process.env.NODE_ENV,
+    env: process.env.NODE_ENV,
     uptime: process.uptime(),
   });
 });
@@ -119,12 +121,43 @@ app.use('/api/v1/auth',     authRoutes);
 app.use('/api/v1/hotels',   hotelRoutes);
 app.use('/api/v1/flights',  flightRoutes);
 app.use('/api/v1/bookings', bookingRoutes);
-app.use('/api/v1/tours',    tourRoutes);
-// app.use('/api/v1/packages', packageRoutes);
+app.use('/api/v1/tours', tourRoutes);
 app.use('/api/v1/admin/packages', adminPackageRoutes);
 app.use('/api/v1/user/packages', userPackageRoutes);
-app.use('/api/v1/account',  accountRoutes);
-app.use('/api/v1/cms',      cmsRoutes);
+app.use('/api/v1/payments', paymentRoutes);
+app.use('/api/v1/account', accountRoutes);
+app.use('/api/v1/cms', cmsRoutes);
+
+// ─── PayPal Redirect Landing Pages ─────────────────────────
+// When no SPA frontend is available, the backend can still render a lightweight status page.
+app.get('/payment/paypal/success', (req, res) => {
+  const { token, PayerID, bookingId } = req.query;
+  const orderId = token || req.query.orderId || '';
+
+  return res.status(200).send(`<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>PayPal Payment Success</title></head>
+<body>
+  <h1>PayPal Redirect Successful</h1>
+  <p>Booking ID: ${bookingId || 'N/A'}</p>
+  <p>Order ID: ${orderId || 'N/A'}</p>
+  <p>To complete the payment capture, call <code>POST /api/v1/payments/paypal/capture</code> with <code>{ "orderId": "${orderId}" }</code> from an authenticated client.</p>
+</body>
+</html>`);
+});
+
+app.get('/payment/paypal/cancel', (req, res) => {
+  const { bookingId } = req.query;
+  return res.status(200).send(`<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>PayPal Payment Cancelled</title></head>
+<body>
+  <h1>PayPal Payment Cancelled</h1>
+  <p>Booking ID: ${bookingId || 'N/A'}</p>
+  <p>The PayPal checkout was cancelled. You may retry payment from your booking page.</p>
+</body>
+</html>`);
+});
 
 // ─── CRM Routes (prefix-gated — mounts only when slug matches) ──
 // The actual CRM route file checks the prefix at the middleware level too
