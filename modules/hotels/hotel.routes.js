@@ -1,24 +1,16 @@
 const router = require('express').Router();
-const hotelController = require('./hotel.controller');
-const hotelValidator = require('./hotel.validator');
+const controller = require('./hotel.controller');
+const validator = require('./hotel.validator');
 const validate = require('../../middleware/validate');
 const { searchLimiter } = require('../../middleware/rateLimiter');
+const { authenticate } = require('../../middleware/auth');
 
-/**
- * ─── HOTEL ROUTES ──────────────────────────────────────
- * Pattern: Search SRDV hotels, get details, create bookings
- * Search is rate-limited since SRDV calls are expensive
- */
-
-// Public search route
-router.get('/search', searchLimiter, hotelValidator.validateSearch(), validate, hotelController.searchHotels);
-
-// Get hotel details by SRDV ID
-router.get('/:hotelId', hotelValidator.validateHotelId(), validate, hotelController.getHotelDetails);
-
-// Get user's hotel bookings — requires auth
-// router.get('/my-bookings', authMiddleware, hotelController.getMyBookings);
-
-// TODO: Create booking, update booking, cancel booking — implement with booking service
+router.post('/search', searchLimiter, validator.validateSearch(), validate, controller.searchHotels);
+router.post('/recheck', validator.validateRecheck(), validate, controller.recheck);
+router.get('/bookings/me', authenticate, validator.validateListBookings(), validate, controller.getMyBookings);
+router.post('/bookings', authenticate, validator.validateCreateBooking(), validate, controller.createBooking);
+router.get('/bookings/:id', authenticate, validator.validateBookingId(), validate, controller.getBooking);
+router.post('/bookings/:id/cancel', authenticate, validator.validateBookingId(), validate, controller.cancelBooking);
+router.get('/:hotelId', validator.validateHotelId(), validate, controller.getHotelDetails);
 
 module.exports = router;

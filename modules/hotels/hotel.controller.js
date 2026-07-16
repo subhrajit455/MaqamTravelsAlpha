@@ -1,56 +1,16 @@
-const hotelService = require('./hotel.service');
-const { sendSuccess, sendNotFound, sendError } = require('../../utils/apiResponse');
+const hotelSearch = require('./hotel-search.service');
+const hotelBooking = require('./hotel-booking.service');
+const { sendSuccess, sendCreated } = require('../../utils/apiResponse');
 
-/**
- * ─── HOTEL CONTROLLER ──────────────────────────────────
- * Thin layer: calls service, sends response
- */
-
-const searchHotels = async (req, res, next) => {
-  try {
-    const { destination, checkIn, checkOut, guests, page, limit } = req.body;
-    
-    const results = await hotelService.searchHotels({
-      destination,
-      checkIn,
-      checkOut,
-      guests,
-      page: page || 1,
-      limit: limit || 10,
-    });
-    
-    return sendSuccess(res, {
-      message: 'Hotels found',
-      data: results.hotels,
-      meta: {
-        total: results.total,
-        page: results.page,
-        limit: results.limit,
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
+const searchHotels = async (req, res) => sendSuccess(res, { message: 'Hotels found', data: await hotelSearch.searchHotels(req.body) });
+const getHotelDetails = async (req, res) => sendSuccess(res, { message: 'Hotel details', data: await hotelSearch.getHotelDetails({ searchId: req.query.searchId, hotelId: req.params.hotelId }) });
+const recheck = async (req, res) => sendSuccess(res, { message: 'Hotel room rechecked', data: await hotelSearch.recheck(req.body) });
+const createBooking = async (req, res) => sendCreated(res, await hotelBooking.createBooking({ userId: req.user._id, ...req.body }), 'Hotel booking is awaiting payment');
+const getMyBookings = async (req, res) => {
+  const result = await hotelBooking.listBookings(req.user._id, req.query);
+  return sendSuccess(res, { message: 'Hotel bookings found', data: result.bookings, meta: { total: result.total, page: result.page, limit: result.limit } });
 };
+const getBooking = async (req, res) => sendSuccess(res, { message: 'Hotel booking found', data: await hotelBooking.getBookingForUser(req.params.id, req.user._id) });
+const cancelBooking = async (req, res) => sendSuccess(res, { message: 'Hotel cancellation processed', data: await hotelBooking.cancelBooking({ bookingId: req.params.id, userId: req.user._id }) });
 
-const getHotelDetails = async (req, res, next) => {
-  try {
-    const { hotelId } = req.params;
-    
-    const hotel = await hotelService.getHotelDetails(hotelId);
-    if (!hotel) {
-      return sendNotFound(res, 'Hotel not found');
-    }
-    
-    return sendSuccess(res, { message: 'Hotel details', data: hotel });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// TODO: getMyBookings with auth middleware
-
-module.exports = {
-  searchHotels,
-  getHotelDetails,
-};
+module.exports = { searchHotels, getHotelDetails, recheck, createBooking, getMyBookings, getBooking, cancelBooking };

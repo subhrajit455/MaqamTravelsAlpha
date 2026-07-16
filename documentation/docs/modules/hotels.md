@@ -4,19 +4,20 @@ sidebar_position: 3
 
 # Hotels Module
 
+> The authoritative production target and source-code audit is [Production Hotel Booking Architecture](./hotel-booking-architecture). This page is a short module overview.
+
 The hotels module is the starting point for hotel discovery and, later, hotel reservations. It is mounted at `/api/v1/hotels`.
 
 ## Current status
 
-Only the read-side API shape exists today. Hotel search and hotel detail routes are registered, but their SRDV integration is incomplete, so they must not be treated as production-ready.
+The module includes mock-first search, details, recheck, local booking, payment-to-provider orchestration, a pending-status helper, and cancellation routes. Its SRDV adapter remains intentionally disabled, and it uses an in-process cache and synchronous provider call, so it must not be treated as production-ready.
 
 | Capability | Status | Notes |
 | --- | --- | --- |
-| Search hotels | In progress | Route, validation, controller, and service exist; the SRDV client method is missing. |
-| Get hotel details | In progress | Route exists; the SRDV client method is missing. |
-| Create reservation | Not implemented | No route or reservation workflow exists. |
-| Payment confirmation | Not implemented | Must be coordinated with the payments and bookings modules. |
-| My bookings / cancellation | Not implemented | Models exist, but there is no exposed workflow. |
+| Search, details and recheck | Mock implementation | Public routes exist; live SRDV mapping is not implemented. |
+| Local booking | Mock implementation | Creates an immutable mock snapshot pending payment. |
+| Payment/provider orchestration | Mock implementation | Current path calls provider work synchronously; production must use outbox and BullMQ. |
+| My bookings / cancellation | Mock implementation | Routes exist; supplier cancellation/refund calculation is still required. |
 
 ## Current files
 
@@ -50,9 +51,11 @@ Content-Type: application/json
 }
 ```
 
-The current code registers `GET /search` but reads `req.body`. That is inconsistent with HTTP client and proxy behaviour, so change the route to `POST /search` before implementing the provider call. Keep `GET /:hotelId` for a details lookup.
+The current code already uses `POST /search`, validates a provider city ID, country, dates, nationality and per-room guests, and keeps `GET /:hotelId` for details lookup.
 
-## Implementation order
+## Historic implementation notes (superseded)
+
+The list below predates the current mock-first module and is retained only for context. Follow the implementation plan in the production architecture document instead.
 
 1. Add `searchHotels` and `getHotelDetails` to the SRDV client, using the real provider endpoints and request schema.
 2. Normalize provider responses in `srdv.adapter.js`; controllers should never expose a provider-specific payload directly.
