@@ -6,24 +6,22 @@ const { body, param } = require('express-validator');
  */
 
 const validateSearch = () => [
-  body('departure')
+  body('origin')
     .trim()
     .notEmpty()
     .withMessage('Departure airport code is required'),
-  body('arrival')
+  body('destination')
     .trim()
     .notEmpty()
     .withMessage('Arrival airport code is required'),
-  body('departDate')
+  body('departureDate')
     .isISO8601()
     .withMessage('Departure date must be a valid date'),
   body('returnDate')
     .optional()
     .isISO8601()
     .withMessage('Return date must be a valid date'),
-  body('passengers')
-    .isInt({ min: 1 })
-    .withMessage('Passengers must be at least 1'),
+  
   body('tripType')
     .optional()
     .isIn(['oneway', 'roundtrip'])
@@ -38,14 +36,14 @@ const validateSearch = () => [
     .withMessage('Limit must be between 1 and 100'),
 ];
 
-const validateFlightId = () => [
-  param('flightId')
+const validateResultIndex= () => [
+  body('resultIndex')
     .trim()
     .notEmpty()
-    .withMessage('Flight ID is required'),
+    .withMessage('Result index is required'),
 ];
 
 module.exports = {
   validateSearch,
-  validateFlightId,
+  validateResultIndex,
 };

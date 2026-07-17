@@ -1,112 +1,115 @@
-const Package = require("../models/package.model");
-const PackageBooking = require("../models/packageBooking.model");
-const TicketStock = require("../models/ticketStock.model");
-const HotelStock = require("../models/hotelStock.model");
+// modules/packages/packageBooking.service.js
+const Package = require("./package.model");
+const PackageBooking = require("./packageBooking.model");
+const stockClaim = require("./stockClaim.service");
+const { calculateAvailability } = require("./package.service");
+const { AppError } = require("../../middleware/errorHandler");
+const logger = require("../../utils/logger");
 
-const { claimAllForBooking, releaseUnit } = require("./stockClaim.service");
-const { availabilityForPackage } = require("./availability.service");
+// ⚠️ TEMP — stands in for the real payments developer's functions. Same call shape a real
+// integration would need: (bookingId, amount) → { orderId, amount }. Swap this one function
+// out later; nothing else here should need to change.
+const mockCreatePaymentOrder = async (bookingId, amount) => ({
+  orderId: `mock_order_${bookingId}_${Date.now()}`,
+  amount,
+});
 
-/**
- * Create a PackageBooking:
- * 1. Load the package + populate its referenced stock
- * 2. Check availability actually covers the requested quantity
- * 3. Claim units atomically (across every flightRef/hotelRef)
- * 4. Create the booking with a frozen snapshot
- * 5. If anything after claiming fails, release the claimed units before
- *    re-throwing — the caller (controller) should never see a booking
- *    that holds units without a matching booking record, or vice versa.
- *
- * Payment is handled separately (Payments module) — this only creates the
- * booking in "initiated" status; the payment flow flips it to "confirmed".
- */
-async function createPackageBooking({ userId, packageId, travellers, quantity }) {
-  const pkg = await Package.findById(packageId)
-    .populate("flightRefs.stock")
-    .populate("hotelRefs.stock");
-
-  if (!pkg || !pkg.isActive) {
-    throw new Error("Package not found or not active.");
+// ⚠️ TEMP — mimics what a real payment-verified webhook will eventually call.
+const mockConfirmPayment = async (bookingId, paymentId) => {
+  const booking = await PackageBooking.findById(bookingId);
+  if (!booking) throw new AppError("Booking not found", 404);
+  if (booking.status !== "pending") {
+    throw new AppError(`Cannot confirm payment — status is '${booking.status}', expected 'pending'`, 400);
   }
 
-  // Build a uniform ref list: { stockModel, stockDoc, stockId, unitsPerBooking }
-  const refs = [
-    ...pkg.flightRefs.map((r) => ({
-      stockModel: TicketStock,
-      stockDoc: r.stock,
-      stockId: r.stock._id,
-      unitsPerBooking: r.unitsPerBooking,
-    })),
-    ...pkg.hotelRefs.map((r) => ({
-      stockModel: HotelStock,
-      stockDoc: r.stock,
-      stockId: r.stock._id,
-      unitsPerBooking: r.unitsPerBooking,
-    })),
-  ];
+  await stockClaim.markUnitsUsed(booking.claimedFlightUnits, booking.claimedHotelUnits);
 
-  const availableBookings = availabilityForPackage(
-    refs.map((r) => ({ stockDoc: r.stockDoc, unitsPerBooking: r.unitsPerBooking }))
-  );
+  booking.status = "confirmed";
+  booking.razorpayPaymentId = paymentId;
+  await booking.save();
+  return booking;
+};
 
-  if (availableBookings < quantity) {
-    throw new Error(
-      `Only ${availableBookings} booking(s) worth of stock left for this package.`
-    );
+const createBooking = async ({ userId, packageId, travellers, quantity }) => {
+  if (!Array.isArray(travellers) || travellers.length === 0) {
+    throw new AppError("At least one traveller is required", 400);
+  }
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    throw new AppError("quantity must be an integer >= 1", 400);
+  }
+  if (travellers.filter((t) => t.isLead).length !== 1) {
+    throw new AppError("Exactly one traveller must be marked isLead", 400);
   }
 
-  // claimAllForBooking needs unitsPerBooking scaled by quantity —
-  // e.g. quantity 2 of a package needing 2 hotel rooms = 4 rooms claimed.
-  const claimRefs = refs.map((r) => ({
-    stockModel: r.stockModel,
-    stockId: r.stockId,
-    unitsPerBooking: r.unitsPerBooking * quantity,
-  }));
+  const pkg = await Package.findOne({ _id: packageId, isActive: true, isPublic: true })
+    .populate("flightRefs.stock", "units")
+    .populate("hotelRefs.stock", "units");
 
-  // Booking doc needs an _id before we claim (claimed units reference it),
-  // so build it in memory first without saving, claim against that _id,
-  // then save once claiming succeeds.
-  const booking = new PackageBooking({
-    userId,
-    packageId,
-    packageSnapshot: {
-      title: pkg.title,
-      priceBreakdown: pkg.priceBreakdown,
-      itinerary: pkg.itinerary,
-      flightDetail: pkg.flightRefs.map((r) => r.stock),
-      hotelDetail: pkg.hotelRefs.map((r) => r.stock),
-    },
-    travellers,
-    quantity,
+  if (!pkg) throw new AppError("Package not found", 404);
+
+  const available = calculateAvailability(pkg);
+  if (quantity > available) {
+    throw new AppError(`Only ${available} slot(s) available for this package`, 409);
+  }
+
+  const packageSnapshot = {
+    title: pkg.title,
+    destination: pkg.destination,
+    sellPrice: pkg.sellPrice,
+    inclusions: pkg.inclusions,
+    itinerary: pkg.itinerary,
+    validity: pkg.validity,
+  };
+
+  const booking = await PackageBooking.create({
+    userId, packageId, packageSnapshot, travellers, quantity,
     totalAmount: pkg.sellPrice * quantity,
     status: "initiated",
   });
 
-  let claimed;
-  try {
-    claimed = await claimAllForBooking(claimRefs, booking._id);
-  } catch (err) {
-    throw new Error(`Could not reserve stock for this booking: ${err.message}`);
-  }
-
-  booking.claimedFlightUnits = claimed
-    .filter((c) => c.stockModel === TicketStock)
-    .map((c) => ({ stock: c.stock, unitId: c.unitId }));
-  booking.claimedHotelUnits = claimed
-    .filter((c) => c.stockModel === HotelStock)
-    .map((c) => ({ stock: c.stock, unitId: c.unitId }));
+  // Refs need plain stockIds for claiming — pkg.flightRefs[].stock is a populated
+  // document at this point, not a bare ObjectId.
+  const flightRefsForClaim = pkg.flightRefs.map((r) => ({ stock: r.stock._id, unitsPerBooking: r.unitsPerBooking }));
+  const hotelRefsForClaim = pkg.hotelRefs.map((r) => ({ stock: r.stock._id, unitsPerBooking: r.unitsPerBooking }));
 
   try {
+    const { claimedFlightUnits, claimedHotelUnits } = await stockClaim.claimUnitsForRefs({
+      flightRefs: flightRefsForClaim,
+      hotelRefs: hotelRefsForClaim,
+      quantity,
+      bookingId: booking._id,
+      bookingModel: "PackageBooking",
+    });
+    booking.claimedFlightUnits = claimedFlightUnits;
+    booking.claimedHotelUnits = claimedHotelUnits;
+    booking.status = "pending";
     await booking.save();
-  } catch (err) {
-    // Booking failed to save after units were claimed — release them all
-    // so stock isn't stuck "assigned" to a booking that doesn't exist.
-    for (const c of claimed) {
-      await releaseUnit(c.stockModel, c.stock, c.unitId);
-    }
-    throw err;
+  } catch (error) {
+    // Should be rare given the availability check above — a genuine race, not bad data.
+    booking.status = "cancelled";
+    booking.remark = `Claim failed: ${error.message}`;
+    await booking.save();
+    logger.error(`Package booking claim failed: ${error.message}`);
+    throw new AppError("Could not reserve stock for this booking — please try again", 409);
   }
 
-  return booking;
-}
+  const { orderId, amount } = await mockCreatePaymentOrder(booking._id, booking.totalAmount);
+  booking.razorpayOrderId = orderId;
+  await booking.save();
 
-module.exports = { createPackageBooking };
+  return { bookingId: booking._id, razorpayOrderId: orderId, amount };
+};
+
+const getBookingById = async (bookingId, userId) => {
+  const booking = await PackageBooking.findOne({ _id: bookingId, userId });
+  if (!booking) throw new AppError("Booking not found", 404);
+  return booking;
+};
+
+const getBookingByIdAdmin = async (bookingId) => {
+  const booking = await PackageBooking.findById(bookingId).populate("userId", "name phone email");
+  if (!booking) throw new AppError("Booking not found", 404);
+  return booking;
+};
+
+module.exports = { createBooking, mockConfirmPayment, getBookingById, getBookingByIdAdmin };

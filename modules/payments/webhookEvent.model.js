@@ -57,7 +57,7 @@ const webhookEventSchema = new mongoose.Schema(
 );
 
 // Prevent duplicate event processing from payment gateways
-webhookEventSchema.index({ eventId: 1 }, { unique: true });
+webhookEventSchema.index({ eventId: 1 });
 
 // TTL index for automated database purging
 webhookEventSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });

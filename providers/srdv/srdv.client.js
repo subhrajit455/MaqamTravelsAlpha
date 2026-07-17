@@ -14,20 +14,20 @@ const SRDV_FLIGHT_BASE_URL =
 const SRDV_API_KEY = process.env.SRDV_API_KEY;
 
 const SRDV_CREDENTIALS = {
-  EndUserIp: process.env.SRDV_END_USER_IP || "1.1.1.1",
-  ClientId: process.env.SRDV_CLIENT_ID,
-  UserName: process.env.SRDV_USERNAME,
-  Password: process.env.SRDV_PASSWORD,
+  EndUserIp: process.env.SRDV_END_USER_IP ,
+  ClientId: process.env.SRDV_CLIENT_ID || 180174,
+  UserName: process.env.SRDV_USERNAME || "MaqamHds",
+  Password: process.env.SRDV_PASSWORD || "MaqamHds@9",
 };
 
 
 const flightClient = axios.create({
   baseURL: SRDV_FLIGHT_BASE_URL,
   headers: {
-    "X-API-Key": SRDV_API_KEY,
+    "Api-Token": SRDV_API_KEY,
     "Content-Type": "application/json",
   },
-  timeout: 10000,
+  timeout: 1000 * 25, // 25 seconds
 });
 
 /**
@@ -104,7 +104,7 @@ const searchFlights = async ({
       });
     }
     
-    logger.info(`SRDV: Searching flights from ${origin} to ${destination}, journeyType: ${journeyType}`);
+    logger.info(`SRDV: Searching flights from ${origin} to ${destination}, journeyType: ${journeyType} in client`);
     const payload = {
       ...SRDV_CREDENTIALS,
       ...mapPassengerCounts(passengers),
@@ -193,6 +193,7 @@ const buildPassenger = (
 
   return passenger;
 };
+
 //****TICKETLLC */
 // Mirrors holdGDS's shape exactly (see srdv-flights-api-reference.md), just isLCC: true
 // and ancillaries wired through. This resolves the doc's own open TODO:

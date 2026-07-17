@@ -26,11 +26,7 @@ const GstDetailsSchema = new Schema(
     companyEmail: String,
     companyContactNumber: String,
   },
-<<<<<<< HEAD
   { _id: false }
-=======
-  { _id: false },
->>>>>>> 204c8b51f9176295a728cea037af26b59d540007
 );
 
 const FlightBookingSchema = new Schema(
@@ -79,8 +75,4 @@ const FlightBookingSchema = new Schema(
   { timestamps: true }
 );
 
-<<<<<<< HEAD
 module.exports = mongoose.model("FlightBooking", FlightBookingSchema);
-=======
-module.exports = mongoose.model("FlightBooking", FlightBookingSchema);
->>>>>>> 204c8b51f9176295a728cea037af26b59d540007

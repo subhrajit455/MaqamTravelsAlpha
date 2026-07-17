@@ -5,7 +5,7 @@ const { AppError } = require("../../middleware/errorHandler");
 const cache = require("../../utils/chache");
 
 const SEARCH_CACHE_TTL_MS = 15 * 60 * 1000; // 15 min
-const FAREQUOTE_CACHE_TTL_MS = 15 * 60 * 1000;
+const FAREQUOTE_CACHE_TTL_MS = 30 * 60 * 1000;
 
 // Strip to exactly what §1 says the cache needs — nothing FE-facing leaks in here
 const toCacheEntry = (o) => ({
@@ -19,11 +19,7 @@ const toCacheEntry = (o) => ({
 });
 
 const searchFlightsService = async ({
-<<<<<<< HEAD
   origin,
-=======
-  departure,
->>>>>>> 204c8b51f9176295a728cea037af26b59d540007
   destination,
   departDate,
   returnDate,
@@ -31,21 +27,12 @@ const searchFlightsService = async ({
   journeyType,
 }) => {
   logger.info(
-<<<<<<< HEAD
     `Searching flights from ${origin} to ${destination} on ${departDate}`,
   );
   try {
     const data = await srdvAdapter.searchFlightsAdapter({
       origin,
       destination,
-=======
-    `Searching flights from ${departure} to ${arrival} on ${departDate}`,
-  );
-  try {
-    const data = await srdvAdapter.searchFlightsAdapter({
-      departure,
-      arrival,
->>>>>>> 204c8b51f9176295a728cea037af26b59d540007
       departDate,
       returnDate,
       passengers,
@@ -65,7 +52,8 @@ const searchFlightsService = async ({
       },
       SEARCH_CACHE_TTL_MS,
     );
-
+    console.log(`Flight search cached with traceId: ${data.traceId}`);
+    console.log(`Chached date: ${JSON.stringify(cache.get(`flight:search:${data.traceId}`))}`);
     // FE never sees srdvIndex/isLCC/singleSlotBooking — §1: "not sent to the frontend"
 
     // const settings = await Settings.findOne();
@@ -93,7 +81,9 @@ const searchFlightsService = async ({
 
 // Used by fareQuote/book to pull srdvIndex etc back out by resultIndex
 const getCachedSearchEntryService = (traceId, resultIndex) => {
+  console.log(`Fetching cached search entry for traceId:\n\n ${traceId}, resultIndex: ${resultIndex}`);
   const cached = cache.get(`flight:search:${traceId}`);
+  console.log(`Cached search entry: ${JSON.stringify(cached)}`);
   if (!cached)
     throw new AppError("Search session expired, please search again", 410);
   const entry =
@@ -103,22 +93,12 @@ const getCachedSearchEntryService = (traceId, resultIndex) => {
   return { ...entry, srdvType: cached.srdvType };
 };
 
-const getSearchEntry = (traceId, resultIndex) => {
-  const cached = cache.get(`flight:search:${traceId}`);
-  if (!cached)
-    throw new AppError("Search session expired, please search again", 410);
-  const entry =
-    cached.outbound.find((o) => o.resultIndex === resultIndex) ??
-    cached.inbound?.find((o) => o.resultIndex === resultIndex);
-  if (!entry) throw new AppError("Invalid resultIndex for this search", 400);
-  return { ...entry, srdvType: cached.srdvType };
-};
-
-const getFareQuoteService = async ({ traceId, resultIndex }) => {
+const getFareQuoteService = async ( traceId, resultIndex ) => {
   const isTwoLeg = Array.isArray(resultIndex);
+  console.log(`Fetching fare quote for traceId in service: ${traceId}, resultIndex: ${resultIndex}`);
   const entries = isTwoLeg
-    ? resultIndex.map((ri) => getSearchEntry(traceId, ri))
-    : [getSearchEntry(traceId, resultIndex)];
+    ? resultIndex.map((ri) => getCachedSearchEntryService(traceId, ri))
+    : [getCachedSearchEntryService(traceId, resultIndex)] ;
 
   const { srdvType } = entries[0];
   let normalizedResults;
@@ -126,7 +106,7 @@ const getFareQuoteService = async ({ traceId, resultIndex }) => {
   if (!isTwoLeg) {
     // Single index → one FareQuote call
     normalizedResults = [
-      await srdvAdapter.fareQuote({
+      await srdvAdapter.fareQuoteAdapter({
         srdvType,
         traceId,
         srdvIndex: entries[0].srdvIndex,

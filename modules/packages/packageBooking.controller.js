@@ -1,26 +1,27 @@
-const { createPackageBooking } = require("./packageBooking.service");
+// modules/packages/packageBooking.controller.js
+const service = require("./packageBooking.service");
 
-/**
- * POST /api/v1/packages/:id/book
- * Auth: customer
- */
-async function bookPackage(req, res) {
-  try {
-    const booking = await createPackageBooking({
-      userId: req.user.id,
-      packageId: req.params.id,
-      travellers: req.body.travellers,
-      quantity: req.body.quantity || 1,
-    });
+const createBooking = async (req, res) => {
+  const { packageId, travellers, quantity } = req.body;
+  const result = await service.createBooking({ userId: req.user.id, packageId, travellers, quantity });
+  res.status(201).json({ success: true, ...result });
+};
 
-    return res.status(201).json({
-      success: true,
-      message: "Package booking created. Proceed to payment.",
-      data: booking,
-    });
-  } catch (err) {
-    return res.status(400).json({ success: false, message: err.message });
-  }
-}
+// ⚠️ TEMP endpoint — stands in for the real payment verify/webhook route. Delete once the
+// payments developer's module is wired in here.
+const mockConfirmPayment = async (req, res) => {
+  const booking = await service.mockConfirmPayment(req.params.id, req.body.paymentId || "mock_payment_id");
+  res.status(200).json({ success: true, booking });
+};
 
-module.exports = { bookPackage };
+const getBooking = async (req, res) => {
+  const booking = await service.getBookingById(req.params.id, req.user.id);
+  res.status(200).json({ success: true, booking });
+};
+
+const adminGetBooking = async (req, res) => {
+  const booking = await service.getBookingByIdAdmin(req.params.id);
+  res.status(200).json({ success: true, booking });
+};
+
+module.exports = { createBooking, mockConfirmPayment, getBooking, adminGetBooking };

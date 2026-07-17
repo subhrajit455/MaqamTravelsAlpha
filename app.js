@@ -18,7 +18,7 @@ const hotelRoutes   = require('./modules/hotels/hotel.routes');
 const flightRoutes  = require('./modules/flights/flight.routes');
 const bookingRoutes = require('./modules/bookings/booking.routes');
 const tourRoutes = require('./modules/tours/tour.routes');
-const packageRoutes = require('./modules/packages/package.routes');
+const {admin : adminPackageRoutes, customer : userPackageRoutes} = require('./modules/packages/package.routes');
 const paymentRoutes = require('./modules/payments/payment.routes');
 const accountRoutes = require('./modules/account/account.routes');
 const cmsRoutes = require('./modules/cms/cms.routes');
@@ -39,11 +39,9 @@ const app = express();
 app.use(correlationIdMiddleware);
 
 app.use(cors({
-  origin: [
-    'http://192.168.0.123:5173', // For network access
-    'http://localhost:5173',
-  ],
-  credentials: true,
+  origin: '*', // For development testing
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Force handle preflight requests globally
@@ -122,8 +120,8 @@ app.use('/api/v1/hotels',   hotelRoutes);
 app.use('/api/v1/flights',  flightRoutes);
 app.use('/api/v1/bookings', bookingRoutes);
 app.use('/api/v1/tours', tourRoutes);
-app.use('/api/v1/admin/packages', adminPackageRoutes);
-app.use('/api/v1/user/packages', userPackageRoutes);
+app.use('/api/v1/crm/packages', adminPackageRoutes);
+app.use('/api/v1/packages', userPackageRoutes);
 app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/account', accountRoutes);
 app.use('/api/v1/cms', cmsRoutes);
@@ -167,7 +165,7 @@ app.use(`/api/v1${CRM_PREFIX}`, crmRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────────
 app.use((req, res) => {
-  res.status(404).json({ success: false, message: 'Route not found' });
+  res.status(404).json({ success: false, message: 'Route not found or the method/headers is wrong ' });
 });
 
 // ─── Global Error Handler (must be last) ──────────────────

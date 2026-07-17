@@ -20,33 +20,16 @@ const HotelUnitSchema = new Schema(
       enum: ["available", "assigned", "used"],
       default: "available",
     },
-<<<<<<< HEAD
     guestConfirmationRef: { type: String, default: null }, 
     assignedToBooking: { type: Schema.Types.ObjectId, default: null },
     assignedToBookingModel: {
       type: String,
       enum: ["PackageBooking", "OfferBooking"],
-=======
-    // Hotel equivalent of TicketUnitSchema.ticketNumber — stays null until admin actually
-    // submits this guest's name to the hotel (the "rooming list") and records whatever
-    // confirmation the hotel gives back for that specific room.
-    guestConfirmationRef: { type: String, default: null },
-
-    // Reference only, no guest name duplicated here — same PII rule used everywhere else
-    // in this codebase (FlightBooking.passengers[].travellerId, TicketUnitSchema.assignedToBooking).
-    assignedToBooking: {
-      type: Schema.Types.ObjectId,
-      ref: "PackageBooking",
->>>>>>> 204c8b51f9176295a728cea037af26b59d540007
       default: null,
     },
     assignedAt: Date,
   },
-<<<<<<< HEAD
   { _id: true },
-=======
-  { _id: true }
->>>>>>> 204c8b51f9176295a728cea037af26b59d540007
 );
 
 const HotelStockSchema = new Schema(
@@ -59,13 +42,9 @@ const HotelStockSchema = new Schema(
     checkIn: { type: Date, required: true },
     checkOut: { type: Date, required: true },
     pricePerNight: { type: Number, required: true }, // admin's actual bulk cost per night —
-<<<<<<< HEAD
     
     meals: [{type: String, enum: ["breakfast", "lunch", "dinner"]}],
 
-=======
-    // internal only, must never reach GET /packages/:id
->>>>>>> 204c8b51f9176295a728cea037af26b59d540007
 
     // --- Block booking mechanics ---
     reservationRef: { type: String, required: true }, // hotel's block booking confirmation —
@@ -84,11 +63,7 @@ const HotelStockSchema = new Schema(
 
     createdBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
   },
-<<<<<<< HEAD
   { timestamps: true },
-=======
-  { timestamps: true }
->>>>>>> 204c8b51f9176295a728cea037af26b59d540007
 );
 
 // Derived, not stored — same rule applied throughout this module: anything computable from
@@ -111,8 +86,4 @@ HotelStockSchema.virtual("availableUnits").get(function () {
 HotelStockSchema.set("toJSON", { virtuals: true });
 HotelStockSchema.set("toObject", { virtuals: true });
 
-<<<<<<< HEAD
 module.exports = mongoose.model("HotelStock", HotelStockSchema);
-=======
-module.exports = mongoose.model("HotelStock", HotelStockSchema);
->>>>>>> 204c8b51f9176295a728cea037af26b59d540007

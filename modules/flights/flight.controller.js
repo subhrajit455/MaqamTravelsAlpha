@@ -15,20 +15,12 @@ const searchFlights = async (req, res, next) => {
       returnDate,
       passengers,
       journeyType,
-<<<<<<< HEAD
       //flightCabin is hardcoded for now, can be added later if needed
     } = req.body;
 
     const results = await searchFlightsService({
       origin,
       destination,
-=======
-    } = req.body;
-
-    const results = await searchFlightsService({
-      departure: origin,
-      arrival: destination,
->>>>>>> 204c8b51f9176295a728cea037af26b59d540007
       departDate: departureDate,
       returnDate,
       passengers,
@@ -46,8 +38,9 @@ const searchFlights = async (req, res, next) => {
 
 const getFareQuote = async (req, res, next) => {
   try {
-    const { traceId, flightId } = req.params;
-    const flight = await getFareQuoteService(traceId, flightId);
+    const { traceId, resultIndex } = req.body;
+    console.log(`calling fare qoute service for traceId: ${traceId}, resultIndex: ${resultIndex}`);
+    const flight = await getFareQuoteService(traceId, resultIndex);
 
     if (!flight) {
       return sendNotFound(res, "Flight not found");
@@ -90,8 +83,3 @@ module.exports = {
   getFareQuote,
   book,
 };
-<<<<<<< HEAD
-=======
-
-//
->>>>>>> 204c8b51f9176295a728cea037af26b59d540007
