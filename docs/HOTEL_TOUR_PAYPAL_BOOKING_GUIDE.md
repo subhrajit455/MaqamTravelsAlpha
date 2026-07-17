@@ -241,7 +241,7 @@ Note about pending payments and idempotency:
 - Auth: required
 - Roles allowed: `finance`, `admin`, `super_admin`
 
-#### Body
+#### Refund Request Body
 
 ```json
 {
@@ -274,7 +274,7 @@ Note about pending payments and idempotency:
 - URL: `/api/v1/bookings`
 - Auth: required
 
-#### Body
+#### Master Booking Body
 
 ```json
 {
@@ -288,7 +288,7 @@ Note about pending payments and idempotency:
 }
 ```
 
-#### Notes
+#### Master Booking Notes
 
 - `itemId` should reference the specific hotel/tour domain booking record.
 - This route creates a generic master booking record, but PayPal order creation currently resolves directly from the domain booking model.
@@ -335,7 +335,7 @@ Note about pending payments and idempotency:
 - URL: `/api/v1/tours`
 - Auth: required
 
-#### Body
+#### Tour Body
 
 ```json
 {

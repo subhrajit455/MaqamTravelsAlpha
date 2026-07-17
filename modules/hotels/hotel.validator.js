@@ -1,4 +1,4 @@
-const { body, param, query } = require('express-validator');
+const { body, param, query, header } = require('express-validator');
 
 const roomValidator = body('rooms').isArray({ min: 1, max: 8 }).withMessage('At least one room is required.');
 const roomFields = [
@@ -11,7 +11,12 @@ const roomFields = [
 const validateSearch = () => [
   body('cityId').trim().notEmpty().withMessage('SRDV/provider cityId is required.'),
   body('countryCode').trim().isLength({ min: 2, max: 2 }).toUpperCase(),
-  body('checkIn').isISO8601().toDate(),
+  body('checkIn').isISO8601().toDate().custom((checkIn) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (checkIn < today) throw new Error('Check-in must be today or later.');
+    return true;
+  }),
   body('checkOut').isISO8601().toDate().custom((checkOut, { req }) => {
     if (checkOut <= req.body.checkIn) throw new Error('Check-out must be after check-in.');
     return true;
@@ -27,7 +32,6 @@ const validateSearch = () => [
   }),
   body('minRating').optional().isInt({ min: 1, max: 5 }),
   body('maxRating').optional().isInt({ min: 1, max: 5 }),
-  body('mockScenario').optional().isIn(['price_changed', 'policy_changed', 'provider_pending', 'book_failure']),
 ];
 
 const validateHotelId = () => [param('hotelId').trim().notEmpty(), query('searchId').isUUID().withMessage('Valid searchId is required.')];
@@ -35,9 +39,9 @@ const validateRecheck = () => [
   body('searchId').isUUID(), body('hotelId').trim().notEmpty(),
   body('selectedRooms').isArray({ min: 1, max: 8 }),
   body('selectedRooms.*.roomId').trim().notEmpty(), body('selectedRooms.*.quantity').optional().isInt({ min: 1, max: 8 }),
-  body('mockScenario').optional().isIn(['price_changed', 'policy_changed', 'provider_pending', 'book_failure']),
 ];
 const validateCreateBooking = () => [
+  header('Idempotency-Key').optional().trim().notEmpty().withMessage('Idempotency-Key header must be a non-empty string when provided.'),
   body('recheckId').isUUID(), body('acceptChanges').optional().isBoolean(),
   body('guests').isArray({ min: 1, max: 32 }),
   body('guests.*.title').trim().notEmpty(), body('guests.*.firstName').trim().notEmpty(), body('guests.*.lastName').trim().notEmpty(),

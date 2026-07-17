@@ -12,25 +12,25 @@ The hotels module is the starting point for hotel discovery and, later, hotel re
 
 The module includes mock-first search, details, recheck, local booking, payment-to-provider orchestration, a pending-status helper, and cancellation routes. Its SRDV adapter remains intentionally disabled, and it uses an in-process cache and synchronous provider call, so it must not be treated as production-ready.
 
-| Capability | Status | Notes |
-| --- | --- | --- |
-| Search, details and recheck | Mock implementation | Public routes exist; live SRDV mapping is not implemented. |
-| Local booking | Mock implementation | Creates an immutable mock snapshot pending payment. |
+| Capability                     | Status              | Notes                                                                                  |
+| ------------------------------ | ------------------- | -------------------------------------------------------------------------------------- |
+| Search, details and recheck    | Mock implementation | Public routes exist; live SRDV mapping is not implemented.                             |
+| Local booking                  | Mock implementation | Creates an immutable mock snapshot pending payment.                                    |
 | Payment/provider orchestration | Mock implementation | Current path calls provider work synchronously; production must use outbox and BullMQ. |
-| My bookings / cancellation | Mock implementation | Routes exist; supplier cancellation/refund calculation is still required. |
+| My bookings / cancellation     | Mock implementation | Routes exist; supplier cancellation/refund calculation is still required.              |
 
 ## Current files
 
-| File | Responsibility |
-| --- | --- |
-| `modules/hotels/hotel.routes.js` | HTTP routes and validation wiring. |
-| `modules/hotels/hotel.controller.js` | Translates HTTP input into service calls. |
-| `modules/hotels/hotel.service.js` | Hotel-domain orchestration. |
-| `modules/hotels/hotel.validator.js` | Request validation rules. |
-| `modules/hotels/hotel.model.js` | Persistent `HotelBooking` record. |
+| File                                     | Responsibility                                                                |
+| ---------------------------------------- | ----------------------------------------------------------------------------- |
+| `modules/hotels/hotel.routes.js`         | HTTP routes and validation wiring.                                            |
+| `modules/hotels/hotel.controller.js`     | Translates HTTP input into service calls.                                     |
+| `modules/hotels/hotel.service.js`        | Hotel-domain orchestration.                                                   |
+| `modules/hotels/hotel.validator.js`      | Request validation rules.                                                     |
+| `modules/hotels/hotel.model.js`          | Persistent `HotelBooking` record.                                             |
 | `modules/hotels/hotelInventory.model.js` | Local/demo `Hotel` inventory model; it is not the live SRDV inventory source. |
-| `providers/srdv/srdv.client.js` | Raw provider HTTP calls. |
-| `providers/srdv/srdv.adapter.js` | Provider-response normalization boundary. |
+| `providers/srdv/srdv.client.js`          | Raw provider HTTP calls.                                                      |
+| `providers/srdv/srdv.adapter.js`         | Provider-response normalization boundary.                                     |
 
 ## Intended API contract
 
@@ -50,6 +50,12 @@ Content-Type: application/json
   "limit": 10
 }
 ```
+
+## Developer references
+
+- [SRDV Hotel API Analysis](./srdv-hotel-api-analysis)
+- [SRDV Hotel API Full Flow](./srdv-hotel-api-full-flow)
+- [Production Hotel Booking Architecture](./hotel-booking-architecture)
 
 The current code already uses `POST /search`, validates a provider city ID, country, dates, nationality and per-room guests, and keeps `GET /:hotelId` for details lookup.
 

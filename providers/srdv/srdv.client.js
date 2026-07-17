@@ -11,8 +11,9 @@ const { AppError } = require("../../middleware/errorHandler");
 const SRDV_FLIGHT_BASE_URL =
   process.env.SRDV_API_BASE_FLIGHT_URL || "https://flight.srdvtest.com/v8/rest";
 const SRDV_HOTEL_BASE_URL =
-  process.env.SRDV_API_BASE_HOTEL_URL || "https://hotel.srdv.com/v8/rest";
-const SRDV_API_KEY = process.env.SRDV_API_KEY;
+  process.env.SRDV_API_BASE_HOTEL_URL || "https://hotel.srdvtest.com/v8/rest";
+const SRDV_API_KEY = process.env.SRDV_API_KEY || process.env.SRDV_API_TOKEN || "";
+const cleanToken = String(SRDV_API_KEY).replace(/\(.*\)/g, '').trim();
 
 const SRDV_CREDENTIALS = {
   EndUserIp: process.env.SRDV_END_USER_IP || "1.1.1.1",
@@ -24,7 +25,7 @@ const SRDV_CREDENTIALS = {
 const hotelClient = axios.create({
   baseURL: SRDV_HOTEL_BASE_URL,
   headers: {
-    "X-API-Key": SRDV_API_KEY,
+    ...(cleanToken ? { "X-API-Key": cleanToken } : {}),
     "Content-Type": "application/json",
   },
   timeout: 10000,

@@ -7,9 +7,19 @@ const HOTEL_BOOKING_STATUS = {
   PROVIDER_FAILED: 'provider_failed',
   CANCELLATION_REQUESTED: 'cancellation_requested',
   CANCELLED: 'cancelled',
+  PAYMENT_FAILED: 'payment_failed',
+  REFUND_PENDING: 'refund_pending',
+  REFUNDED: 'refunded',
+  COMPLETED: 'completed',
 };
 
 const SEARCH_CACHE_TTL_MS = 15 * 60 * 1000;
 const RECHECK_CACHE_TTL_MS = 10 * 60 * 1000;
 
-module.exports = { HOTEL_BOOKING_STATUS, SEARCH_CACHE_TTL_MS, RECHECK_CACHE_TTL_MS };
+const QUEUES = {
+  HOTEL_BOOK: 'hotel-book',
+  HOTEL_POLL_STATUS: 'hotel-poll-status',
+  HOTEL_CANCEL: 'hotel-cancel',
+};
+
+module.exports = { HOTEL_BOOKING_STATUS, SEARCH_CACHE_TTL_MS, RECHECK_CACHE_TTL_MS, QUEUES };

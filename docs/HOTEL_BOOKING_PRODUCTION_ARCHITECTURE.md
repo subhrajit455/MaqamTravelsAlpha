@@ -137,6 +137,7 @@ Do not expose the supplier net amount. It reveals supplier commercial rates, ena
 
 `GET /api/v1/hotels/:hotelId?searchId=...` first proves that the hotel belongs to the active search. Use `HotelInfo` for content that is not included in Search or whose content cache is stale; use `HotelRoom` to obtain selectable room/rate data for the exact search. Content can be cached longer (for example 24 hours, subject to supplier terms); rates and availability are only search-time hints and must be revalidated by `BlockRoom`.
 
+
 Public room DTOs show room name, occupancy, meal, inclusions, cancellation text, images and **selling** amount. Preserve the complete provider room object and all correlation fields only in the search session, because the provider often requires them again at Book time.
 
 ## 5. Redis session design

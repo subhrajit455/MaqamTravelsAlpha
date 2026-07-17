@@ -10,6 +10,19 @@ const PORT = process.env.PORT || 5000;
 
 connectDB();
 
+// Initialize BullMQ workers on startup if Redis is configured
+if (process.env.REDIS_URL) {
+  try {
+    const { initWorker: initBookWorker } = require('./workers/hotels/hotel-book.worker');
+    const { initWorker: initPollWorker } = require('./workers/hotels/hotel-poll-status.worker');
+    initBookWorker();
+    initPollWorker();
+    logger.info('🤖 BullMQ Hotel Workers initialized successfully.');
+  } catch (err) {
+    logger.error(`Failed to initialize BullMQ Workers: ${err.message}`);
+  }
+}
+
 const server = app.listen(PORT, () => {
   logger.info(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
 });
