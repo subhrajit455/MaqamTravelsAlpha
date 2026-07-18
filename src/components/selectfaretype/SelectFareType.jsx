@@ -7,7 +7,6 @@ const SelectFareType = ({ setSelectedFare, fareTypes, selectedFare }) => {
         <h3 className="text-lg font-bold text-gray-700 whitespace-nowrap">
           SELECT A FARE TYPE
         </h3>
-
         <div className="grid grid-cols-2 lg:flex lg:flex-wrap gap-3 flex-1">
           {fareTypes.map((fare) => (
             <label

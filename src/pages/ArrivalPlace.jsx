@@ -27,7 +27,7 @@ const ArrivalPlace = ({
   return (
     <>
       <div className="absolute left-0 top-full mt-2 w-full bg-white rounded-xl shadow-2xl  z-50 max-h-72 overflow-y-auto">
-        {toSuggestions.map((airport) => (
+        {toSuggestions?.map((airport) => (
           <button
             key={airport.id || airport.iataCode}
             onClick={() => handleSelectTo(airport)}

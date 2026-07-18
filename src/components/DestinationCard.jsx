@@ -36,7 +36,7 @@ const DestinationCard = ({ item, variant = "default" }) => {
   if (variant === "default") {
     return (
       <div
-        className="min-w-[260px] max-w-[280px] bg-white rounded-2xl flex flex-col justify-between cursor-pointer shadow-sm hover:shadow-lg transition delay-150 duration-300 ease-in-out hover:scale-105 overflow-hidden border border-gray-100/80"
+        className="min-w-[260px] max-w-[280px] bg-gray-200 rounded-2xl flex flex-col justify-between cursor-pointer shadow-sm hover:shadow-lg transition delay-150 duration-300 ease-in-out hover:scale-105 overflow-hidden border border-gray-100/80"
         onClick={handleViewDetails}
       >
         {/* Image */}

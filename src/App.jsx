@@ -15,6 +15,8 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Contact from "./pages/Contact";
 import BookingHelp from "./pages/BookingHelp";
 import Resetpassword from "./pages/Resetpassword";
+import FlightCard from "./components/FlightList";
+import CommonFlightHotelSearchBox from "./components/commonflighthotelsearchbox/CommonFlightHotelSearchBox";
 
 const App = () => {
   return (
@@ -32,6 +34,8 @@ const App = () => {
         <Route path="/profile" element={<Profile />} />
         <Route path="/hotel" element={<Hotel />} />
         <Route path="/flight" element={<Flight />} />
+        <Route path="/common-flighthotel-searchbox"element={<CommonFlightHotelSearchBox />}/>
+        <Route path="/flight-list" element={<FlightCard />} />
         <Route path="/terms" element={<TermsAndConditions />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/contact" element={<Contact />} />
@@ -41,11 +45,7 @@ const App = () => {
         <Route path="*" element={<Error />} />
       </Routes>
 
-      <div className="relative">
-        <div className="absolute top-100  w-full">
-          <Footer />
-        </div>
-      </div>
+      
     </>
   );
 };

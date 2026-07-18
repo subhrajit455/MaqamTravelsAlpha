@@ -169,7 +169,7 @@ const ProfileSettings = () => {
           <div className="col-span-1 space-y-4">
             <h2 className="font-semibold text-teal-600">Account Management</h2>
             <div
-              className={` ${
+              className={`${
                 activeTab === "profile"
                   ? "bg-teal-100 flex items-center gap-2 bg-gray-100 p-2 rounded-md w-full h-12 cursor-pointer"
                   : "flex items-center gap-2 bg-gray-100 p-2 rounded-md w-full h-12 hover:bg-gray-200 cursor-pointer"

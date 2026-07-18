@@ -37,6 +37,7 @@ import ScrollToTop from "../components/ScrollToTop";
 import { toast } from "react-toastify";
 import { UserAPI } from "../configs/api";
 import { forgotPassword } from "../components/reducer/AuthSlice";
+import Flight from "./Flight";
 const Home = () => {
   const dispatch = useDispatch();
   const navigator = useNavigate();
@@ -341,144 +342,8 @@ const Home = () => {
 
   return (
     <>
-      <section className="relative h-screen w-full font-poppins overflow-hidden">
-        {/* Background Images */}
-        <div className="absolute inset-0 overflow-hidden">
-          <div
-            className="flex h-full w-full transition-transform duration-700 ease-in-out"
-            style={{ transform: `translateX(-${currentSlide * 100}%)` }}
-          >
-            {heroSlides.map((slide, index) => (
-              <div key={`${slide.alt}-${index}`} className="min-w-full h-full">
-                <img
-                  src={slide.src}
-                  alt={slide.alt}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-black/50"></div>
-
-        {/* Slide Dots */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20">
-          {heroSlides.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => setCurrentSlide(index)}
-              className={`h-2.5 rounded-full transition-all ${
-                index === currentSlide ? "w-8 bg-white" : "w-2.5 bg-white/60"
-              }`}
-              aria-label={`Go to slide ${index + 1}`}
-            />
-          ))}
-        </div>
-
-        {/* Content */}
-        <div className="relative z-10 flex flex-col items-center justify-start h-full text-center text-white px-4 pt-6">
-          {/* Top Badge */}
-          <div className="flex items-center gap-3 bg-white/90 rounded-full px-4 py-2 mb-6 shadow-md">
-            {/* Logo */}
-            <img src={Logo} alt="logo" className="h-8 object-contain" />
-
-            {/* Divider */}
-            <div className="h-6 w-px bg-gray-300"></div>
-
-            {/* User with Dropdown */}
-            <div
-              className="relative"
-              onMouseEnter={() => setShowUserDropdown(true)}
-              onMouseLeave={() => setShowUserDropdown(false)}
-            >
-              <button className="flex items-center gap-2 bg-teal-500 text-white px-3 py-1 rounded-full hover:bg-teal-600 transition-colors cursor-pointer">
-                <User size={16} />
-                <span className="text-sm font-medium">User</span>
-              </button>
-
-              {/* Dropdown Menu */}
-              {showUserDropdown && (
-                <div className="absolute md:-right-20 -left-12 sm:-right-8 top-full mt-2 bg-white text-gray-800 rounded-lg shadow-2xl border border-gray-100 py-2 w-40 sm:w-48 z-50">
-                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 text-white">
-                    <BiSolidUpArrow size={20} />
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowLoginPopup(false);
-                      setShowUserDropdown(false);
-                    }}
-                    className="w-full px-4 py-3 text-left text-sm hover:bg-teal-50 hover:text-teal-600 transition-colors font-medium flex items-center gap-3 cursor-pointer active:bg-teal-100 sm:hover:bg-teal-50"
-                  >
-                    <span className="text-base">🔐</span> <span>Login</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      // navigator("/register");
-                      setShowRegisterPopup(true);
-                      setShowUserDropdown(false);
-                    }}
-                    className="w-full px-4 py-3 text-left text-sm hover:bg-teal-50 hover:text-teal-600 transition-colors font-medium flex items-center gap-3 cursor-pointer active:bg-teal-100 sm:hover:bg-teal-50"
-                  >
-                    <span className="text-base">📝</span> <span>Register</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      navigator("/profile");
-                      setShowUserDropdown(false);
-                    }}
-                    className="w-full px-4 py-3 text-left text-sm hover:bg-teal-50 hover:text-teal-600 transition-colors font-medium flex items-center gap-3 cursor-pointer active:bg-teal-100 sm:hover:bg-teal-50"
-                  >
-                    <span className="text-base">📋</span> <span>Profile</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Heading */}
-          <h1 className="text-3xl md:text-5xl font-semibold mb-4">
-            Explore the World with Faith & Comfort
-          </h1>
-
-          {/* Subheading */}
-          <p className="text-sm md:text-lg italic opacity-90 font-dancing">
-            Book Halal-Friendly Flights, Hotels & Muslim Destinations.
-          </p>
-        </div>
-      </section>
-
-      <Header />
-
-      <section className="w-full flex justify-center bg-[#FAFAF8] py-6 px-4 font-poppins">
-        <div className="w-full max-w-2xl">
-          <div
-            className="flex items-center bg-teal-600 rounded-lg overflow-hidden shadow-md"
-            onClick={() => navigator("/search")}
-          >
-            {/* Input */}
-            {/* <input
-              type="text"
-              placeholder="Search Your Dream Place, Hotel, Package..."
-              className="flex-1 px-5 py-3 text-white placeholder-white bg-transparent outline-none"
-            /> */}
-            <div className="flex-1 px-5 py-3 text-white placeholder-white bg-transparent outline-none cursor-pointer">
-              Search Your Dream Place, Hotel...
-            </div>
-
-            {/* Divider */}
-            <div className="h-6 w-px bg-white/40"></div>
-
-            {/* Icon */}
-            <button className="px-4 py-3 text-white hover:bg-teal-700 transition cursor-pointer">
-              <Search size={20} />
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-[#FAFAF8] py-14 px-6 font-poppins">
+      <Flight />
+      <section className="bg-[#FAFAF8] mt-56 px-6 font-poppins">
         <div className="max-w-7xl mx-auto">
           {/* Heading */}
           <h2 className="text-2xl font-medium text-gray-900 mb-8">
@@ -490,7 +355,7 @@ const Home = () => {
             {/* Left Arrow */}
             <button
               onClick={() => scroll("left")}
-              className="bg-teal-200 hover:bg-teal-300 p-2 rounded-md cursor-pointer"
+              className="bg-teal-200 hover:bg-teal-300 p-2 rounded-md cursor-pointer relative z-50"
             >
               <ChevronLeft size={18} />
             </button>
@@ -511,7 +376,7 @@ const Home = () => {
             {/* Right Arrow */}
             <button
               onClick={() => scroll("right")}
-              className="bg-teal-200 hover:bg-teal-300 p-2 rounded-md cursor-pointer"
+              className="bg-teal-200 hover:bg-teal-300 p-2 rounded-md cursor-pointer relative z-50"
             >
               <ChevronRight size={18} />
             </button>
@@ -530,7 +395,10 @@ const Home = () => {
           <div className="flex items-center gap-3">
             {/* Left Arrow */}
             <button
-              onClick={() => scroll2("left")}
+              onClick={() => {
+                scroll2("left");
+                console.log("Click ----");
+              }}
               className="bg-teal-200 hover:bg-teal-300 p-2 rounded-md cursor-pointer"
             >
               <ChevronLeft size={18} />
@@ -671,64 +539,6 @@ const Home = () => {
               src={image}
               alt="Decorative background"
               className=" w-[360px]  "
-            />
-          </div>
-        </div>
-      </section>
-
-      <section className="w-full bg-[#cfa632] py-16 px-6 font-poppins">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-10">
-          {/* Left Content */}
-          <div className="max-w-xl">
-            <h2 className="text-4xl font-semibold text-gray-900 leading-snug">
-              Need a <span className="text-teal-600">RELIGIOUS</span> Travel
-              Plan?
-            </h2>
-
-            <p className="mt-4 text-gray-900 text-sm leading-relaxed">
-              Tell us your budget, destination, and travel dates — we prepare a
-              tailored itinerary.
-            </p>
-
-            {/* Buttons */}
-            <div className="flex gap-4 mt-6 md:flex-row flex-col">
-              <a
-                href="tel:+9609092893"
-                className="flex items-center gap-2 bg-white text-gray-900 px-5 py-2 rounded-md shadow font-bold hover:bg-gray-100 transition cursor-pointer"
-              >
-                <MdPhone size={28} />
-                Call with a Travel Consultant
-              </a>
-
-              <a
-                href="https://wa.me/9609092893?text=Hello%20Maqam%20Travel%2C%20I%20need%20help%20with%20my%20travel%20plan"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 bg-white text-gray-900 px-5 py-2 rounded-md shadow font-bold hover:bg-gray-100 transition cursor-pointer"
-              >
-                <IoLogoWhatsapp size={28} className="text-green-500" />
-                Chat With Us
-              </a>
-            </div>
-          </div>
-
-          {/* Right Illustration */}
-          <div className="relative">
-            {/* Lanterns */}
-            {/* <img
-            src="/lantern1.png"
-            className="absolute -top-10 right-24 w-10"
-          /> */}
-            <img
-              src={Light}
-              className="hidden md:block absolute -top-16 -right-40 w-50"
-            />
-
-            {/* Main Illustration */}
-            <img
-              src={Namaj}
-              alt="Religious travel illustration"
-              className="w-[320px]"
             />
           </div>
         </div>

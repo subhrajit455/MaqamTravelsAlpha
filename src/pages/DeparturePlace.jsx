@@ -12,6 +12,10 @@ const DeparturePlace = ({
   showFromSuggestions,
   setFromQuery,
   formatSuggestion,
+  selectedFrom,
+  setSelectedFrom,
+  setFromSuggestions,
+  setShowFromSuggestions,
 }) => {
   const handleSelectFrom = (suggestion) => {
     console.log("Selected From suggestion:", suggestion);
@@ -34,8 +38,8 @@ const DeparturePlace = ({
 
   return (
     <>
-      <div className="absolute left-0 top-full mt-2 w-full bg-white rounded-xl shadow-2xl  z-50 max-h-72 overflow-y-auto">
-        {fromSuggestions.map((airport) => (
+      <div className="absolute left-0 top-full mt-2 w-full bg-white rounded-xl shadow-2xl  z-[100] max-h-72 overflow-y-auto">
+        {fromSuggestions?.map((airport) => (
           <button
             key={airport.id || airport.iataCode}
             onClick={() => handleSelectFrom(airport)}
