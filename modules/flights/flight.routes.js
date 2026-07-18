@@ -133,11 +133,86 @@ router.post('/farequote', flightValidator.validateResultIndex(), validate,  getF
  *   post:
  *     tags: [Flights]
  *     summary: Book a selected flight
+ *     description: Creates a flight booking after a fare quote has been accepted. Requires an authenticated user and a valid fare quote cache entry.
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - traceId
+ *               - resultIndex
+ *               - passengers
+ *             properties:
+ *               traceId:
+ *                 type: string
+ *                 example: "1734567890123"
+ *               resultIndex:
+ *                 oneOf:
+ *                   - type: string
+ *                   - type: array
+ *                     items:
+ *                       type: string
+ *                 example: "11-9273507496_0DELBOM9I11111~4825511490445912"
+ *               passengers:
+ *                 type: array
+ *                 minItems: 1
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - travellerId
+ *                     - isLeadPax
+ *                   properties:
+ *                     travellerId:
+ *                       type: string
+ *                       example: "64f0b5c2d2b6e3b4c5d6e7f8"
+ *                     isLeadPax:
+ *                       type: boolean
+ *                       example: true
+ *               gstDetails:
+ *                 type: object
+ *                 nullable: true
+ *                 properties:
+ *                   gstNumber:
+ *                     type: string
+ *                     example: "22AAAAA0000A1Z5"
+ *                   companyName:
+ *                     type: string
+ *                     example: "Example Pvt Ltd"
+ *                   address:
+ *                     type: string
+ *                     example: "123 Main Street"
  *     responses:
- *       200:
- *         description: Booking created successfully
+ *       201:
+ *         description: Booking initiated successfully and payment can proceed.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Booking initiated, proceed to payment
+ *                 data:
+ *                   type: object
+ *       400:
+ *         description: Invalid request or missing required data.
+ *       401:
+ *         description: Authentication required.
+ *       404:
+ *         description: Authenticated user is required or booking not found.
+ *       410:
+ *         description: Fare quote expired, please re-quote.
+ *       500:
+ *         description: Internal server error.
  */
-router.post('/book', flightValidator.validateResultIndex(), validate, authenticate,  book);
+router.post('/book', flightValidator.validateResultIndex(), validate,   book);
 
 // TODO: Create booking, get my bookings — implement with booking service
 

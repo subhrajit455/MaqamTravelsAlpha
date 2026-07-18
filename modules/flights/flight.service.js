@@ -6,6 +6,7 @@ const cache = require("../../utils/chache");
 
 const SEARCH_CACHE_TTL_MS = 15 * 60 * 1000; // 15 min
 const FAREQUOTE_CACHE_TTL_MS = 30 * 60 * 1000;
+const resultIndexKey = (ri) => (Array.isArray(ri) ? ri.join("||") : ri);
 
 // Strip to exactly what §1 says the cache needs — nothing FE-facing leaks in here
 const toCacheEntry = (o) => ({
@@ -53,7 +54,10 @@ const searchFlightsService = async ({
       SEARCH_CACHE_TTL_MS,
     );
     console.log(`Flight search cached with traceId: ${data.traceId}`);
-    console.log(`Chached date: ${JSON.stringify(cache.get(`flight:search:${data.traceId}`))}`);
+    console.log(
+      `Chached date: ${JSON.stringify(cache.get(`flight:search:${data.traceId}`))}`,
+    );
+    console.log(`Flight search cached with traceId: ${data.traceId}`);
     // FE never sees srdvIndex/isLCC/singleSlotBooking — §1: "not sent to the frontend"
 
     // const settings = await Settings.findOne();
@@ -81,9 +85,12 @@ const searchFlightsService = async ({
 
 // Used by fareQuote/book to pull srdvIndex etc back out by resultIndex
 const getCachedSearchEntryService = (traceId, resultIndex) => {
-  console.log(`Fetching cached search entry for traceId:\n\n ${traceId}, resultIndex: ${resultIndex}`);
+  console.log(
+    `Fetching cached search entry for traceId:\n\n ${traceId}, resultIndex: ${resultIndex}`,
+  );
   const cached = cache.get(`flight:search:${traceId}`);
   console.log(`Cached search entry: ${JSON.stringify(cached)}`);
+  console.log(`All data in map:\n ${JSON.stringify(cache.getAll())} `);
   if (!cached)
     throw new AppError("Search session expired, please search again", 410);
   const entry =
@@ -93,12 +100,14 @@ const getCachedSearchEntryService = (traceId, resultIndex) => {
   return { ...entry, srdvType: cached.srdvType };
 };
 
-const getFareQuoteService = async ( traceId, resultIndex ) => {
+const getFareQuoteService = async (traceId, resultIndex) => {
   const isTwoLeg = Array.isArray(resultIndex);
-  console.log(`Fetching fare quote for traceId in service: ${traceId}, resultIndex: ${resultIndex}`);
+  console.log(
+    `Fetching fare quote for traceId in service: ${traceId}, resultIndex: ${resultIndex}`,
+  );
   const entries = isTwoLeg
     ? resultIndex.map((ri) => getCachedSearchEntryService(traceId, ri))
-    : [getCachedSearchEntryService(traceId, resultIndex)] ;
+    : [getCachedSearchEntryService(traceId, resultIndex)];
 
   const { srdvType } = entries[0];
   let normalizedResults;
@@ -122,7 +131,7 @@ const getFareQuoteService = async ( traceId, resultIndex ) => {
         : entries.map((e) => e.resultIndex).join(",");
 
     normalizedResults = [
-      await srdvAdapter.fareQuote({
+      await srdvAdapter.fareQuoteAdapter({
         srdvType,
         traceId,
         srdvIndex: entries[0].srdvIndex,
@@ -133,7 +142,7 @@ const getFareQuoteService = async ( traceId, resultIndex ) => {
     // singleSlotBooking === "No" → two independent calls
     normalizedResults = await Promise.all(
       entries.map((e) =>
-        srdvAdapter.fareQuote({
+        srdvAdapter.fareQuoteAdapter({
           srdvType,
           traceId,
           srdvIndex: e.srdvIndex,
@@ -161,6 +170,7 @@ const getFareQuoteService = async ( traceId, resultIndex ) => {
     `flight:farequote:${traceId}:${resultIndexKey(resultIndex)}`,
     {
       entries: entries.map((e, i) => ({
+        srdvType: e.srdvType,
         resultIndex: e.resultIndex,
         srdvIndex: e.srdvIndex,
         isLCC: e.isLCC,
@@ -168,11 +178,13 @@ const getFareQuoteService = async ( traceId, resultIndex ) => {
       })),
       isGstMandatory: normalizedResults[0].isGstMandatory,
     },
-    FAREQUOTE_TTL,
+    FAREQUOTE_CACHE_TTL_MS,
   );
 
-  const settings = await Settings.findOne();
-  const markupPercent = settings?.flightMarkupPercent || 0;
+  // const settings = await Settings.findOne();
+  // const markupPercent = settings?.flightMarkupPercent || 0;
+
+  const markupPercent = 10;
   const withMarkup = (fare) =>
     Math.round((fare.OfferedFare || 0) * (1 + markupPercent / 100) * 100) / 100;
 
@@ -210,8 +222,23 @@ const bookFlightService = async ({
 
   // TODO(open decision, flow doc): singleSlotBooking "No" two-doc case — not implemented here.
   // Current code assumes single doc / combined-index path only. Revisit before shipping return flights.
+
+  const travellerIds = passengers.map((p) => p.travellerId);
+  const travellerDocs = await Traveller.find({ _id: { $in: travellerIds } });
+
+  const travellersForSrdv = passengers.map((p) => ({
+    traveller: travellerDocs.find((t) => t._id.equals(p.travellerId)),
+    isLeadPax: !!p.isLeadPax,
+  }));
+
   const entry = fqCache.entries[0];
   const isLCC = entry.isLCC;
+
+  const markupPercent = 10;
+  const totalAmount =
+    Math.round(
+      (entry.fare.OfferedFare || 0) * (1 + markupPercent / 100) * 100,
+    ) / 100;
 
   // Crash-safety net — write "initiated" BEFORE calling SRDV
   let flightBooking = await FlightBooking.create({
@@ -234,7 +261,7 @@ const bookFlightService = async ({
   try {
     let bookResult;
     if (isLCC) {
-      bookResult = await srdvAdapter.ticketLCC({
+      bookResult = await srdvAdapter.ticketLCCAdapter({
         srdvType: entry.srdvType,
         traceId,
         srdvIndex: entry.srdvIndex,
@@ -259,7 +286,7 @@ const bookFlightService = async ({
             : undefined,
       });
     } else {
-      bookResult = await srdvAdapter.holdGDS({
+      bookResult = await srdvAdapter.holdGDSAdapter({
         srdvType: entry.srdvType,
         traceId,
         srdvIndex: entry.srdvIndex,
@@ -286,21 +313,18 @@ const bookFlightService = async ({
     throw error;
   }
 
-  const settings = await Settings.findOne();
-  const markupPercent = settings?.flightMarkupPercent || 0;
-  const totalAmount =
-    Math.round(
-      (entry.fare.OfferedFare || 0) * (1 + markupPercent / 100) * 100,
-    ) / 100;
+  // const settings = await Settings.findOne();
+  // const markupPercent = settings?.flightMarkupPercent || 0;
+
   flightBooking.totalAmount = totalAmount;
   flightBooking.markupAmount = totalAmount - (entry.fare.OfferedFare || 0);
   await flightBooking.save();
 
-  const paypalOrder = await paypalService.createOrder({
-    amount: totalAmount,
-    receipt: String(flightBooking._id),
-  });
-  flightBooking.paymentOrderId = paypalOrder.id;
+  // const paypalOrder = await paypalService.createOrder({
+  //   amount: totalAmount,
+  //   receipt: String(flightBooking._id),
+  // });
+  flightBooking.paymentOrderId = "1234567890";
   await flightBooking.save();
 
   return {
@@ -330,7 +354,7 @@ const ticketGDSAfterPayment = async (bookingId) => {
     throw new AppError("Ticketing deadline has passed for this hold", 410);
   }
 
-  const result = await srdvAdapter.ticketGDS({
+  const result = await srdvAdapter.ticketGDSAdapter({
     srdvType: flightBooking.srdvType,
     traceId: flightBooking.traceId,
     srdvIndex: flightBooking.srdvIndex,

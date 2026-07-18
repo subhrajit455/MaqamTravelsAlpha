@@ -16,5 +16,19 @@ const get = (key) => {
   }
   return entry.value;
 };
+const getAll = () => {
+  const now = Date.now();
+  const validData = [];
 
-module.exports = { set, get };
+  for (const [key, entry] of store.entries()) {
+    if (now > entry.expiresAt) {
+      store.delete(key); // Clear expired data
+    } else {
+      validData.push(entry.value); // Keep active data
+    }
+  }
+
+  return validData; // Returns empty array [] if no data available
+};
+
+module.exports = { set, get, getAll};

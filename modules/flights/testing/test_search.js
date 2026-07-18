@@ -50,37 +50,36 @@ async function run() {
 
     const data = await res.json();
     console.log("STATUS:", res.status);
-console.log("Headers:\n", Object.fromEntries(res.headers.entries()));
-    console.log(JSON.stringify(data));
+    // console.log(JSON.stringify(data));
 
     // ---- Quick sanity checks against things flagged as unverified in the docs ----
     const firstOption = data?.Results?.[0]?.[0];
-
+    console.log(firstOption)
     if (firstOption) {
-      console.log("\n--- Checks ---");
-      console.log(
-        "FareDataMultiple[0] keys:",
-        Object.keys(firstOption.FareDataMultiple?.[0] || {}),
-      );
-      console.log(
-        "Has FareType field?:",
-        "FareType" in (firstOption.FareDataMultiple?.[0] || {}),
-      );
-      console.log(
-        "Has ReturnIdentifier(Matched) field?:",
-        "ReturnIdentifier" in (firstOption.FareDataMultiple?.[0] || {}) ||
-          "ReturnIdentifierMatched" in
-            (firstOption.FareDataMultiple?.[0] || {}),
-      );
-      console.log(
-        "YQTax type:",
-        typeof firstOption.FareDataMultiple?.[0]?.Fare?.YQTax,
-      );
-      console.log(
-        "IsGSTMandatory type/value:",
-        typeof firstOption.FareDataMultiple?.[0]?.IsGSTMandatory,
-        firstOption.FareDataMultiple?.[0]?.IsGSTMandatory,
-      );
+      console.log("\n--- Checks ---------");
+      // console.log(
+      //   "FareDataMultiple[0] keys:",
+      //   Object.keys(firstOption.FareDataMultiple?.[0] || {}),
+      // );
+      // console.log(
+      //   "Has FareType field?:",
+      //   "FareType" in (firstOption.FareDataMultiple?.[0] || {}),
+      // );
+      // console.log(
+      //   "Has ReturnIdentifier(Matched) field?:",
+      //   "ReturnIdentifier" in (firstOption.FareDataMultiple?.[0] || {}) ||
+      //     "ReturnIdentifierMatched" in
+      //       (firstOption.FareDataMultiple?.[0] || {}),
+      // );
+      // console.log(
+      //   "YQTax type:",
+      //   typeof firstOption.FareDataMultiple?.[0]?.Fare?.YQTax,
+      // );
+      // console.log(
+      //   "IsGSTMandatory type/value:",
+      //   typeof firstOption.FareDataMultiple?.[0]?.IsGSTMandatory,
+      //   firstOption.FareDataMultiple?.[0]?.IsGSTMandatory,
+      // );
     } else {
       console.log(
         "\nNo results in Results[0][0] — check the response shape above manually.",
