@@ -14,7 +14,7 @@ const SRDV_FLIGHT_BASE_URL =
 const SRDV_API_KEY = process.env.SRDV_API_KEY;
 
 const SRDV_CREDENTIALS = {
-  EndUserIp: process.env.SRDV_END_USER_IP ,
+  EndUserIp: process.env.SRDV_END_USER_IP,
   ClientId: process.env.SRDV_CLIENT_ID || 180174,
   UserName: process.env.SRDV_USERNAME || "MaqamHds",
   Password: process.env.SRDV_PASSWORD || "MaqamHds@9",
@@ -82,18 +82,18 @@ const searchFlights = async ({
   journeyType,
 }) => {
   try {
-    
+
     const segment = {
       Origin: origin,
       Destination: destination,
-      FlightCabinClass: 0,
+      FlightCabinClass: 1,
       PreferredDepartureTime: normalizeDateTime(departDate),
       PreferredArrivalTime: normalizeDateTime(departDate),
     };
-    
+
     const segments = [segment];
     const journeyTypeCode = mapJourneyType(journeyType);
-    
+
     if (journeyTypeCode === 2 && returnDate) {
       segments.push({
         Origin: destination,
@@ -103,7 +103,7 @@ const searchFlights = async ({
         PreferredArrivalTime: normalizeDateTime(returnDate),
       });
     }
-    
+
     logger.info(`SRDV: Searching flights from ${origin} to ${destination}, journeyType: ${journeyType} in client`);
     const payload = {
       ...SRDV_CREDENTIALS,
@@ -297,6 +297,8 @@ const ticketGDS = async ({
   travellers,
   fareData,
   gstData,
+  pnr,
+  bookingId
 }) => {
   const payload = {
     ...SRDV_CREDENTIALS,

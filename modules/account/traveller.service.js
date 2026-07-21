@@ -1,4 +1,4 @@
-const {Traveller }= require('./traveller.model');
+const Traveller = require('./traveller.model');
 const { AppError } = require('../../middleware/errorHandler');
 const logger = require('../../utils/logger');
 

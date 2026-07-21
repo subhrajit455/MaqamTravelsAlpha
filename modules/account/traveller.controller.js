@@ -23,8 +23,8 @@ const createTraveller = async (req, res, next) => {
 const getTravellersByUserId = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const getTravellers = await travellerService.getTravellersByUserId(userId);
-    sendSuccess(res, getTravellers);
+    const data = await travellerService.getTravellersByUserId(userId);
+    sendSuccess(res, data);
   } catch (error) {
     next(error);
   }
@@ -37,7 +37,7 @@ const getTravellerById = async (req, res, next) => {
       userId,
       req.params.travellerId,
     );
-    sendSuccess(res, traveller);
+    sendSuccess(res, data= traveller);
   } catch (error) {
     next(error);
   }
@@ -51,7 +51,7 @@ const updateTraveller = async (req, res, next) => {
       req.params.travellerId,
       travellerData,
     );
-    sendSuccess(res, traveller);
+    sendSuccess(res, data = traveller);
   } catch (error) {
     next(error);
   }
@@ -63,7 +63,7 @@ const deleteTraveller = async (req, res, next) => {
       userId,
       req.params.travellerId,
     );
-    sendSuccess(res, traveller);
+    sendSuccess(res, data = traveller);
   } catch (error) {
     next(error);
   }

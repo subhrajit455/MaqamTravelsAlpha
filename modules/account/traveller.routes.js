@@ -6,9 +6,9 @@ const validate = require('../../middleware/validate');
 const { authenticate } = require('../../middleware/auth');
 router.use(authMiddleware.authenticate);
 
-router.get('/', authenticate, travellerController.getTravellersByUserId);
+router.get('/getAll', authenticate, travellerController.getTravellersByUserId);
 router.get('/:travellerId', travellerValidator.validateTravellerId(), validate, authenticate, travellerController.getTravellerById);
-router.post('/', travellerValidator.validateCreateTraveller(), validate, authenticate, travellerController.createTraveller);
+router.post('/create', travellerValidator.validateCreateTraveller(), validate, authenticate, travellerController.createTraveller);
 router.put('/:travellerId', travellerValidator.validateTravellerId(), travellerValidator.validateUpdateTraveller(), validate, authenticate, travellerController.updateTraveller);
 router.delete('/:travellerId', travellerValidator.validateTravellerId(), validate, authenticate, travellerController.deleteTraveller);
 

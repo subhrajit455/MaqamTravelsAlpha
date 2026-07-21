@@ -29,8 +29,8 @@ const payload = {
       Origin: "BOM",
       Destination: "DEL",
       FlightCabinClass: 0, // confirmed: 0 = no preference, per docs
-      PreferredDepartureTime: "2026-08-15T00:00:00",
-      PreferredArrivalTime: "2026-08-15T00:00:00",
+      PreferredDepartureTime: "2026-07-21T00:00:00",
+      PreferredArrivalTime: "2026-07-21T00:00:00",
     },
   ],
 };

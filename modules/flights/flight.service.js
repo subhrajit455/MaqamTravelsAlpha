@@ -3,7 +3,7 @@ const FlightBooking = require("./flight.model");
 const logger = require("../../utils/logger");
 const { AppError } = require("../../middleware/errorHandler");
 const cache = require("../../utils/chache");
-
+const {Traveller } = require("../account/traveller.model")
 const SEARCH_CACHE_TTL_MS = 15 * 60 * 1000; // 15 min
 const FAREQUOTE_CACHE_TTL_MS = 30 * 60 * 1000;
 const resultIndexKey = (ri) => (Array.isArray(ri) ? ri.join("||") : ri);
@@ -90,7 +90,7 @@ const getCachedSearchEntryService = (traceId, resultIndex) => {
   );
   const cached = cache.get(`flight:search:${traceId}`);
   console.log(`Cached search entry: ${JSON.stringify(cached)}`);
-  console.log(`All data in map:\n ${JSON.stringify(cache.getAll())} `);
+  // console.log(`All data in map:\n ${JSON.stringify(cache.getAll())} `);
   if (!cached)
     throw new AppError("Search session expired, please search again", 410);
   const entry =
@@ -223,13 +223,10 @@ const bookFlightService = async ({
   // TODO(open decision, flow doc): singleSlotBooking "No" two-doc case — not implemented here.
   // Current code assumes single doc / combined-index path only. Revisit before shipping return flights.
 
-  const travellerIds = passengers.map((p) => p.travellerId);
-  const travellerDocs = await Traveller.find({ _id: { $in: travellerIds } });
-
-  const travellersForSrdv = passengers.map((p) => ({
-    traveller: travellerDocs.find((t) => t._id.equals(p.travellerId)),
-    isLeadPax: !!p.isLeadPax,
-  }));
+  const resolvedTravellers = await resolveTravellersService({
+    userId,
+    passengers,
+  });
 
   const entry = fqCache.entries[0];
   const isLCC = entry.isLCC;
@@ -246,14 +243,16 @@ const bookFlightService = async ({
     traceId,
     srdvType: entry.srdvType,
     srdvIndex: entry.srdvIndex,
-    resultIndex: isTwoLeg ? resultIndex.join(",") : resultIndex,
+    resultIndex: entry.resultIndex,
     isLCC,
+    totalAmount,
+  markupAmount: totalAmount - (entry.fare.OfferedFare || 0),
     fareSnapshot: entry.fare,
     isGstMandatory: fqCache.isGstMandatory,
     gstDetails: gstDetails || undefined,
     status: "initiated",
-    passengers: passengers.map((p) => ({
-      travellerId: p.travellerId,
+    passengers: resolvedTravellers.map((p) => ({
+      travellerId: p.traveller._id,
       isLeadPax: !!p.isLeadPax,
     })),
   });
@@ -265,8 +264,8 @@ const bookFlightService = async ({
         srdvType: entry.srdvType,
         traceId,
         srdvIndex: entry.srdvIndex,
-        resultIndex: flightBooking.resultIndex,
-        travellers: passengers,
+        resultIndex: entry.resultIndex,
+        travellers: resolvedTravellers,
         fareData: entry.fare,
         gstData: gstDetails,
         ancillaries: {}, // MVP: empty Baggage/MealDynamic/Seat, per api-reference
@@ -290,8 +289,8 @@ const bookFlightService = async ({
         srdvType: entry.srdvType,
         traceId,
         srdvIndex: entry.srdvIndex,
-        resultIndex: flightBooking.resultIndex,
-        travellers: passengers,
+        resultIndex: entry.resultIndex,
+        travellers: resolvedTravellers,
         fareData: entry.fare,
         gstData: gstDetails,
       });
@@ -329,7 +328,7 @@ const bookFlightService = async ({
 
   return {
     bookingId: flightBooking._id,
-    paymentOrderId: paypalOrder.id,
+    paymentOrderId: flightBooking.paymentOrderId,
     amount: totalAmount,
   };
 };
@@ -371,15 +370,6 @@ const ticketGDSAfterPayment = async (bookingId) => {
     status: "confirmed",
   });
 
-  result.passengers.forEach((rp) => {
-    const match = flightBooking.passengers.find(
-      (p) => p.isLeadPax === undefined || true, // TODO: match by name — travellerId doesn't carry name here
-    );
-    // NOTE: matching by name requires populating Traveller docs first; placeholder below
-    // just applies ticket fields to passengers array in order. Fix before relying on
-    // multi-pax bookings — see flag below.
-  });
-
   flightBooking.passengers = flightBooking.passengers.map((p, i) => ({
     ...p.toObject(),
     ticketNumber: result.passengers[i]?.ticketNumber || p.ticketNumber,
@@ -390,6 +380,53 @@ const ticketGDSAfterPayment = async (bookingId) => {
 
   await flightBooking.save();
   return flightBooking;
+};
+
+// Resolves each passenger entry to a real Traveller doc — either an existing one
+// (travellerId) or a newly created one (travellerDetails, inline at booking time).
+// Returns the shape buildPassenger() already expects: [{ traveller, isLeadPax }]
+const resolveTravellersService = async ({ userId, passengers }) => {
+  const existingIds = passengers
+    .filter((p) => p.travellerId)
+    .map((p) => p.travellerId);
+
+  const existingDocs = existingIds.length
+    ? await Traveller.find({ _id: { $in: existingIds } })
+    : [];
+
+  const resolved = await Promise.all(
+    passengers.map(async (p) => {
+      if (p.travellerId && p.travellerDetails) {
+        throw new AppError(
+          "Passenger must have either travellerId or travellerDetails, not both",
+          400,
+        );
+      }
+
+      if (p.travellerId) {
+        const doc = existingDocs.find((t) => t._id.equals(p.travellerId));
+        if (!doc)
+          throw new AppError(`Traveller ${p.travellerId} not found`, 400);
+        return { traveller: doc, isLeadPax: !!p.isLeadPax };
+      }
+
+      if (p.travellerDetails) {
+        const doc = await Traveller.create({
+          ...p.travellerDetails,
+          userId,
+          savedByUser: !!p.saveToProfile, // false = used once, doesn't show in "my travellers"
+        });
+        return { traveller: doc, isLeadPax: !!p.isLeadPax };
+      }
+
+      throw new AppError(
+        "Each passenger needs travellerId or travellerDetails",
+        400,
+      );
+    }),
+  );
+
+  return resolved; // [{ traveller: <Traveller doc>, isLeadPax }] — same shape either way from here on
 };
 
 module.exports = {
