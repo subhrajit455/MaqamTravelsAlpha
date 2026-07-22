@@ -64,12 +64,14 @@ const searchHotels = async (criteria) => {
     };
   });
 
+
   return {
     searchId,
     expiresInSeconds: SEARCH_CACHE_TTL_MS / 1000,
     hotels: publicHotels,
   };
 };
+
 
 /**
  * Fetches rooms and rates for a selected hotel using cached search context
@@ -135,9 +137,15 @@ const getHotelDetails = async ({ searchId, hotelId, correlationId }) => {
     };
   });
 
-  // Cache room details for recheck lookup
+  // Cache room details for recheck lookup using the public room ID and raw SRDV payload
   const detailsCacheKey = `hotel:details:${searchId}:${hotelId}`;
-  await cache.set(detailsCacheKey, { rooms: details._rawRooms || [] }, SEARCH_CACHE_TTL_MS);
+  await cache.set(
+    detailsCacheKey,
+    {
+      rooms: details.rooms.map((room) => ({ id: room.id, raw: room.srdvRoomDetails })),
+    },
+    SEARCH_CACHE_TTL_MS,
+  );
 
   return {
     id: details.id,
@@ -177,12 +185,12 @@ const recheck = async ({ searchId, hotelId, selectedRooms, correlationId }) => {
     throw new AppError('Room options expired. Please view hotel details again.', 410);
   }
 
-  // Map selectedRooms to raw SRDV room details
+  // Map selectedRooms to raw SRDV room details using the cached public room ID
   const cachedRoomDetails = selectedRooms.map((sel) => {
-    const rawRoom = detailsCache.rooms.find((r) => String(r.RoomIndex) === String(sel.roomId));
-    if (!rawRoom) throw new AppError(`Room ID ${sel.roomId} is not valid for this hotel.`, 400);
+    const cachedRoom = detailsCache.rooms.find((r) => String(r.id) === String(sel.roomId));
+    if (!cachedRoom) throw new AppError(`Room ID ${sel.roomId} is not valid for this hotel.`, 400);
     return {
-      srdvRoomDetails: rawRoom,
+      srdvRoomDetails: cachedRoom.raw,
       quantity: sel.quantity || 1,
     };
   });

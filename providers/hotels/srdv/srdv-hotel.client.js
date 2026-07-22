@@ -45,6 +45,7 @@ const getCredentials = () => ({
   UserName: process.env.SRDV_USERNAME || '',
   Password: process.env.SRDV_PASSWORD || '',
 });
+ 
 
 /**
  * Generic POST wrapper with error handling and request logging
@@ -65,6 +66,7 @@ const postRequest = async (path, body, correlationId = '') => {
   logger.info(`[SRDV Hotel Client] [${correlationId}] POST ${path} payload: ${JSON.stringify(redactPayload(payload))}`);
   const startTime = Date.now();
 
+  
   try {
     const normalizedPath = path.replace(/^\/+/, '');
     const response = await client.post(normalizedPath, payload);

@@ -56,6 +56,7 @@ module.exports = {
     try {
       const { cachedHotel, searchSession, correlationId } = params;
       const nights = nightsBetween(searchSession.criteria.checkIn, searchSession.criteria.checkOut);
+      
 
       // Fetch hotel info first, as SRDV requires hotel details before room details.
       let info = { description: '', images: [], address: cachedHotel.HotelAddress || cachedHotel.address || '' };
