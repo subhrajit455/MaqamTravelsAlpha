@@ -3,7 +3,7 @@ const FlightBooking = require("./flight.model");
 const logger = require("../../utils/logger");
 const { AppError } = require("../../middleware/errorHandler");
 const cache = require("../../utils/chache");
-const {Traveller } = require("../account/traveller.model")
+const Traveller = require("../account/traveller.model");
 const SEARCH_CACHE_TTL_MS = 15 * 60 * 1000; // 15 min
 const FAREQUOTE_CACHE_TTL_MS = 30 * 60 * 1000;
 const resultIndexKey = (ri) => (Array.isArray(ri) ? ri.join("||") : ri);
@@ -44,7 +44,7 @@ const searchFlightsService = async ({
       throw new AppError("Failed to search flights", 500);
     }
 
-    cache.set(
+    await cache.set(
       `flight:search:${data.traceId}`,
       {
         srdvType: data.srdvType,
@@ -54,9 +54,8 @@ const searchFlightsService = async ({
       SEARCH_CACHE_TTL_MS,
     );
     console.log(`Flight search cached with traceId: ${data.traceId}`);
-    console.log(
-      `Chached date: ${JSON.stringify(cache.get(`flight:search:${data.traceId}`))}`,
-    );
+    const cachedSearch = await cache.get(`flight:search:${data.traceId}`);
+    console.log(`Chached date: ${JSON.stringify(cachedSearch)}`);
     console.log(`Flight search cached with traceId: ${data.traceId}`);
     // FE never sees srdvIndex/isLCC/singleSlotBooking — §1: "not sent to the frontend"
 
@@ -84,11 +83,9 @@ const searchFlightsService = async ({
 };
 
 // Used by fareQuote/book to pull srdvIndex etc back out by resultIndex
-const getCachedSearchEntryService = (traceId, resultIndex) => {
-  console.log(
-    `Fetching cached search entry for traceId:\n\n ${traceId}, resultIndex: ${resultIndex}`,
-  );
-  const cached = cache.get(`flight:search:${traceId}`);
+const getCachedSearchEntryService = async (traceId, resultIndex) => {
+  
+  const cached = await cache.get(`flight:search:${traceId}`);
   console.log(`Cached search entry: ${JSON.stringify(cached)}`);
   // console.log(`All data in map:\n ${JSON.stringify(cache.getAll())} `);
   if (!cached)
@@ -102,12 +99,12 @@ const getCachedSearchEntryService = (traceId, resultIndex) => {
 
 const getFareQuoteService = async (traceId, resultIndex) => {
   const isTwoLeg = Array.isArray(resultIndex);
-  console.log(
-    `Fetching fare quote for traceId in service: ${traceId}, resultIndex: ${resultIndex}`,
-  );
+
   const entries = isTwoLeg
-    ? resultIndex.map((ri) => getCachedSearchEntryService(traceId, ri))
-    : [getCachedSearchEntryService(traceId, resultIndex)];
+    ? await Promise.all(
+        resultIndex.map((ri) => getCachedSearchEntryService(traceId, ri)),
+      )
+    : [await getCachedSearchEntryService(traceId, resultIndex)];
 
   const { srdvType } = entries[0];
   let normalizedResults;
@@ -166,7 +163,9 @@ const getFareQuoteService = async (traceId, resultIndex) => {
   }
 
   // Cache fareSnapshot(s) server-side — never sent raw to FE (§3)
-  cache.set(
+  console.log(`\nflight:farequote:${traceId}:${resultIndexKey(resultIndex)} caching in farequote service \n\n`)
+
+  await cache.set(
     `flight:farequote:${traceId}:${resultIndexKey(resultIndex)}`,
     {
       entries: entries.map((e, i) => ({
@@ -207,9 +206,10 @@ const bookFlightService = async ({
   gstDetails,
 }) => {
   const isTwoLeg = Array.isArray(resultIndex);
-  const fqCache = cache.get(
+  const fqCache = await cache.get(
     `flight:farequote:${traceId}:${resultIndexKey(resultIndex)}`,
   );
+  console.log(`\nFare Quote chache of ${traceId} and ${resultIndexKey(resultIndex)} in book service:\n${JSON.stringify(fqCache)}\n`)
   if (!fqCache) throw new AppError("Fare quote expired, please re-quote", 410);
 
   if (fqCache.isGstMandatory && !gstDetails) {
@@ -217,8 +217,7 @@ const bookFlightService = async ({
   }
 
   const leadPax = passengers.find((p) => p.isLeadPax);
-  if (!leadPax)
-    throw new AppError("Exactly one lead passenger is required", 400);
+  if (!leadPax) throw new AppError("Exactly one lead passenger is required", 400);
 
   // TODO(open decision, flow doc): singleSlotBooking "No" two-doc case — not implemented here.
   // Current code assumes single doc / combined-index path only. Revisit before shipping return flights.
@@ -246,7 +245,7 @@ const bookFlightService = async ({
     resultIndex: entry.resultIndex,
     isLCC,
     totalAmount,
-  markupAmount: totalAmount - (entry.fare.OfferedFare || 0),
+    markupAmount: totalAmount - (entry.fare.OfferedFare || 0),
     fareSnapshot: entry.fare,
     isGstMandatory: fqCache.isGstMandatory,
     gstDetails: gstDetails || undefined,
@@ -256,6 +255,10 @@ const bookFlightService = async ({
       isLeadPax: !!p.isLeadPax,
     })),
   });
+
+  console.log(
+    `\n\n\n\ncalling adapter for booking Id : ${flightBooking._id} and result index : ${entry.resultIndex}`,
+  );
 
   try {
     let bookResult;
@@ -323,7 +326,7 @@ const bookFlightService = async ({
   //   amount: totalAmount,
   //   receipt: String(flightBooking._id),
   // });
-  flightBooking.paymentOrderId = "1234567890";
+  flightBooking.paymentOrderId = "1234567891";
   await flightBooking.save();
 
   return {
@@ -384,11 +387,8 @@ const ticketGDSAfterPayment = async (bookingId) => {
 
 // Resolves each passenger entry to a real Traveller doc — either an existing one
 // (travellerId) or a newly created one (travellerDetails, inline at booking time).
-// Returns the shape buildPassenger() already expects: [{ traveller, isLeadPax }]
 const resolveTravellersService = async ({ userId, passengers }) => {
-  const existingIds = passengers
-    .filter((p) => p.travellerId)
-    .map((p) => p.travellerId);
+  const existingIds = passengers.filter((p) => p.travellerId).map((p) => p.travellerId);
 
   const existingDocs = existingIds.length
     ? await Traveller.find({ _id: { $in: existingIds } })

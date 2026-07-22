@@ -44,7 +44,6 @@ const generateRefreshAccessToken =  (refreshToken) => {
 const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization || req.headers.Authorization;
-    console.log("In authenticate() authHeader:\n:", authHeader)
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       throw new AppError('Authentication token missing', 401);
     }
@@ -56,7 +55,6 @@ const authenticate = async (req, res, next) => {
     if (!user) {
       throw new AppError('Invalid token or user not found', 401);
     }
-    console.log(`User from accessToken in authenticate(): \n${user}`)
     req.user = user;
     next();
   } catch (error) {

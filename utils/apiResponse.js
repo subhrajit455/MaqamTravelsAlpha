@@ -2,6 +2,7 @@ const sendSuccess = (
   res,
   { message = "Success", data = null, meta = null, statusCode = 200 } = {},
 ) => {
+  console.log(data)
   const response = { success: true, message };
   if (data !== null) response.data = data;
   if (meta !== null) response.meta = meta;

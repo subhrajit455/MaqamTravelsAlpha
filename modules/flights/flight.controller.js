@@ -39,7 +39,9 @@ const searchFlights = async (req, res, next) => {
 const getFareQuote = async (req, res, next) => {
   try {
     const { traceId, resultIndex } = req.body;
-    console.log(`calling fare qoute service for traceId: ${traceId}, resultIndex: ${resultIndex}`);
+
+    console.log(`calling fare qoute service for traceId: ${traceId}, resultIndex: ${resultIndex}\n`);//logging for testing
+    
     const flight = await getFareQuoteService(traceId, resultIndex);
 
     if (!flight) {
@@ -56,7 +58,7 @@ const book = async (req, res, next) => {
   try {
     const { traceId, resultIndex, passengers, gstDetails } = req.body;
     const userId = req.user?.id;
-
+    console.log("\n\n\n",req.body)
     if (!userId) {
       return sendNotFound(res, "Authenticated user is required");
     }

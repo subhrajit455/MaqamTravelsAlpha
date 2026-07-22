@@ -179,6 +179,9 @@ function normalizeFareQuoteResponse(raw) {
     isRefundable: !!results.IsRefundable,
     isGstMandatory: coerceTriState(results.IsGSTMandatory),
 
+    // paxCount:{
+      
+    // }
     required: {
       passport: !!results.IsPassportRequiredAtBook,
       passportFullDetail: !!results.IsPassportFullDetailRequiredAtBook,
@@ -219,7 +222,8 @@ const fareQuoteAdapter = async ({
 
 //----------------TICKET LCC------------------------
 
-function normalizeTicketLccResponse(raw) {
+function normalizeTicketLCCResponse(raw) {
+  
   if (raw?.Error?.ErrorCode && raw.Error.ErrorCode !== "0") {
     throw new AppError(
       raw.Error.ErrorMessage || "SRDV ticket (LCC) error",
@@ -284,7 +288,10 @@ const ticketLCCAdapter = async ({
       gstData,
       ancillaries,
     });
-    return normalizeTicketLccResponse(raw);
+
+    console.log(`\n\n\nHi here is your res from SRDV ticketLLC:${JSON.stringify(raw)} `) //logging for tesrt
+    
+    return normalizeTicketLCCResponse(raw);
   } catch (error) {
     logger.error(`SRDV adapter ticket LCC failed: ${error.message}`);
     throw error;

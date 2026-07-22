@@ -3,8 +3,11 @@ const mongoose = require("mongoose");
 
 const travellerSchema = new mongoose.Schema(
   {
-    
-userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
     passengerType: {
       type: String,
       enum: ["Adult", "Child", "Infant"],

@@ -26,6 +26,7 @@ const getTravellersByUserId = async (userId) => {
         throw new AppError('No travellers found for this user', 404);
     }
     logger.info(`Retrieved ${travellers.length} travellers for user ${userId}`);
+    console.log(travellers)
     return travellers;
 }   
     

@@ -212,7 +212,7 @@ router.post('/farequote', flightValidator.validateResultIndex(), validate,  getF
  *       500:
  *         description: Internal server error.
  */
-router.post('/book', flightValidator.validateResultIndex(), validate,   book);
+router.post('/book', flightValidator.validateResultIndex(), authenticate, validate,   book);
 
 // TODO: Create booking, get my bookings — implement with booking service
 
