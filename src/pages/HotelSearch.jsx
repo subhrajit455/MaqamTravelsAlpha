@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import HotelDatePicker from "../components/datepicker/HotelDatePicker";
 import RoomGuestSelector from "../components/roomguestselector/RoomGuestSelector";
 import {
@@ -12,7 +13,8 @@ import {
   Package,
 } from "lucide-react";
 const travellingWay = ["All", "India"];
-const HotelSearch = ({ searchbox }) => {
+const HotelSearch = ({ searchbox, handleFlightSearch }) => {
+  const navigate = useNavigate();
   const roomGuestRef = useRef(null);
   const [activeTab, setActiveTab] = useState("All");
   const [checkIn, setCheckIn] = useState(new Date());
@@ -37,11 +39,9 @@ const HotelSearch = ({ searchbox }) => {
     };
   }, [openRoomguestselector]);
 
-  console.log("openRoomguestselector====", openRoomguestselector);
-
   return (
     <>
-      <div className="absolute  md:top-60 lg:top-10 left-1/2 -translate-x-1/2 w-[100%] lg:w-[80%] bg-white rounded-3xl  backdrop-blur-md p-6 shadow-[0_20px_60px_rgba(0,0,0,0.15)]">
+      <div className="w-full lg:w-[90%] mx-auto bg-white rounded-3xl p-6 shadow-[0_20px_60px_rgba(0,0,0,0.15)]">
         <div className="grid grid-rosw-2">
           <div className="flex justify-center lg:justify-start">
             <div className="inline-flex flex-wrap gap-2 bg-gray-200 px-3 py-1 rounded-3xl">
@@ -206,6 +206,19 @@ const HotelSearch = ({ searchbox }) => {
         </div>
         <div className="flex justify-center items-center relative">
           <button
+            onClick={() => {
+              handleFlightSearch();
+              navigate("/hotel", {
+                state: {
+                  flights: [
+                    {
+                      // searchFlights: searchFlights,
+                      // showNavbar: showNavbar,
+                    },
+                  ],
+                },
+              });
+            }}
             className="absolute top-1 bg-gradient-to-r from-green-800 to-green-600
              hover:from-green-800 to-green-600
              text-white font-bold uppercase
@@ -215,7 +228,7 @@ const HotelSearch = ({ searchbox }) => {
              transition-all duration-300
              cursor-pointer"
           >
-            Search {searchbox}
+            Search! {searchbox}
           </button>
         </div>
       </div>

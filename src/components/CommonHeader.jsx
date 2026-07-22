@@ -1,52 +1,229 @@
 import React, { useState, useEffect } from "react";
-import { Menu, X, User } from "lucide-react";
+import { Menu, X, User, Briefcase, ChevronDown } from "lucide-react";
 import { BiSolidUpArrow } from "react-icons/bi";
-import { FaRobot } from "react-icons/fa";
-import { NavLink, useNavigate } from "react-router-dom";
-import { GoHomeFill } from "react-icons/go";
-import { IoLocationSharp } from "react-icons/io5";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { RiHotelFill } from "react-icons/ri";
 import { BiSolidPlaneAlt } from "react-icons/bi";
 import Logo from "../assets/logo.png";
-import HeroBg from "../assets/heroimage.jpg";
 import image01 from "../assets/image01.jpg";
-import image02 from "../assets/image02.jpg";
 import image03 from "../assets/image03.jpg";
 import image04 from "../assets/image04.jpg";
-import image05 from "../assets/image05.jpg";
 
 const heroImages = [image01, image03, image04];
 
 const CommonHeader = ({ title, value }) => {
   const navigator = useNavigate();
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showMobileUserDropdown, setShowMobileUserDropdown] = useState(false);
-  const [currentImage, setCurrentImage] = useState(0);
   const [current, setCurrent] = useState(0);
   const [openImage, setOpenImage] = useState(value);
+
+  // Navigation menu: Flights and Hotels only
   const menu = [
-    { name: "Home", icon: GoHomeFill, href: "/" },
-    // { name: "Location", icon: IoLocationSharp, href: "/location" },
-    { name: "Hotel", icon: RiHotelFill, href: "/hotel" },
-    { name: "Flight", icon: BiSolidPlaneAlt, href: "/flight" },
-    // { name: "Ai Tour Planner", icon: FaRobot, href: "/ai-tour-planner" },
+    { name: "Flights", icon: BiSolidPlaneAlt, href: "/" },
+    { name: "Hotels", icon: RiHotelFill, href: "/hotel" },
   ];
 
+  // Helper to determine if tab should be selected (including list and detail subpages)
+ const isTabActive = (href) => {
+  if (href === "/") {
+    return (
+      location.pathname === "/" ||
+      location.pathname.startsWith("/flight") ||
+      location.pathname.includes("fare-quote") ||
+      location.pathname.includes("review") ||
+      location.pathname.includes("booking")
+    );
+  }
+
+  if (href === "/hotel") {
+    return (
+      location.pathname === "/hotel" ||
+      location.pathname.startsWith("/hotel")
+    );
+  }
+  
+  return location.pathname === href;
+};
+
   useEffect(() => {
+    if (!openImage) return;
     const interval = setInterval(() => {
       setCurrent((prev) => (prev + 1) % heroImages.length);
     }, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [openImage]);
 
   return (
-    <div
-      className="relative pointer-events-auto w-full bg-cover bg-center flex flex-col items-center font-poppins cursor-pointer"
-      // style={{ backgroundImage: `url(${heroImages[currentImage]})` }}
-    >
+    <div className="relative pointer-events-auto w-full font-poppins">
+      {/* MakeMyTrip Style Full-Width Dark Navy Top Header Bar */}
+      <header className="w-full bg-[#051329] text-white border-b border-slate-800/80 shadow-md sticky top-0 z-50">
+        <div className="w-full px-4 sm:px-8 md:px-12 h-16 flex items-center justify-between gap-4">
+          
+          {/* Left: Brand Logo */}
+          <NavLink to="/" className="flex items-center shrink-0">
+            <img
+              src={Logo}
+              alt="logo"
+              className="h-10 md:h-12 object-contain cursor-pointer"
+            />
+          </NavLink>
+
+          {/* Middle: MakeMyTrip Style Category Navigation (Highlights on List & Details pages) */}
+          <nav className="hidden md:flex items-center gap-1 lg:gap-3">
+            {menu.map((item, index) => {
+              const Icon = item.icon;
+              const active = isTabActive(item.href);
+              return (
+                <NavLink
+                  key={index}
+                  to={item.href}
+                  className={`flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-200 border-b-2 ${
+                    active
+                      ? "border-blue-500 text-blue-400 font-extrabold bg-blue-900/20 rounded-t-lg"
+                      : "border-transparent text-gray-300 hover:text-white hover:border-gray-500"
+                  }`}
+                >
+                  <Icon size={18} className="text-blue-400" />
+                  <span>{item.name}</span>
+                </NavLink>
+              );
+            })}
+          </nav>
+
+          {/* Right Side: My Trips & Login / Create Account Button */}
+          <div className="flex items-center gap-4 shrink-0">
+            {/* My Trips */}
+            <div
+              onClick={() => navigator("/profile")}
+              className="hidden sm:flex items-center gap-2 text-xs font-semibold text-gray-300 hover:text-white cursor-pointer px-3 py-1.5 rounded-lg hover:bg-slate-800/80 transition"
+            >
+              <Briefcase size={16} className="text-blue-400" />
+              <span>My Trips</span>
+            </div>
+
+            {/* Desktop User Account Dropdown */}
+            <div
+              className="hidden md:block relative"
+              onMouseEnter={() => setShowUserDropdown(true)}
+              onMouseLeave={() => setShowUserDropdown(false)}
+            >
+              <button className="flex items-center gap-2.5 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-5 py-2 rounded-xl text-xs font-bold tracking-wide shadow-md transition-all cursor-pointer border border-blue-400/30">
+                <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+                  <User size={14} className="text-white" />
+                </div>
+                <span>Login or Create Account</span>
+                <ChevronDown size={14} className="text-blue-200" />
+              </button>
+
+              {/* Dropdown Menu */}
+              {showUserDropdown && (
+                <div className="absolute right-0 top-full mt-2 bg-white text-gray-800 rounded-xl shadow-2xl border border-gray-100 py-2 w-52 z-50 animate-in fade-in slide-in-from-top-2">
+                  <div className="absolute -top-2.5 right-8 transform text-white">
+                    <BiSolidUpArrow size={16} />
+                  </div>
+                  <div className="px-4 py-2 border-b border-gray-100">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Welcome to Maqam
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator("/login");
+                      setShowUserDropdown(false);
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 hover:text-blue-600 font-semibold flex items-center gap-3 cursor-pointer"
+                  >
+                    <span>🔐</span> <span>Login</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigator("/register");
+                      setShowUserDropdown(false);
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 hover:text-blue-600 font-semibold flex items-center gap-3 cursor-pointer"
+                  >
+                    <span>📝</span> <span>Register</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigator("/profile");
+                      setShowUserDropdown(false);
+                    }}
+                    className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 hover:text-blue-600 font-semibold flex items-center gap-3 cursor-pointer"
+                  >
+                    <span>📋</span> <span>My Profile</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Mobile Toggle Button */}
+            <button
+              className="md:hidden text-gray-200 p-2 rounded-lg hover:bg-slate-800 transition"
+              onClick={() => setOpen(!open)}
+            >
+              {open ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile Dropdown Navigation Menu */}
+        {open && (
+          <div className="md:hidden bg-[#0B1528] border-t border-slate-800 px-4 py-4 flex flex-col gap-3">
+            {menu.map((item, index) => {
+              const Icon = item.icon;
+              const active = isTabActive(item.href);
+
+              return (
+                <NavLink
+                  key={index}
+                  to={item.href}
+                  onClick={() => setOpen(false)}
+                  className={`flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-semibold ${
+                    active
+                      ? "bg-blue-600 text-white font-bold"
+                      : "text-gray-300 hover:text-white hover:bg-slate-800"
+                  }`}
+                >
+                  <Icon size={18} className="text-blue-400" />
+                  <span>{item.name}</span>
+                </NavLink>
+              );
+            })}
+
+            <button
+              onClick={() => {
+                navigator("/profile");
+                setOpen(false);
+              }}
+              className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold text-gray-300 hover:bg-slate-800"
+            >
+              <Briefcase size={18} className="text-blue-400" />
+              <span>My Trips</span>
+            </button>
+
+            <div className="pt-2 border-t border-slate-800">
+              <button
+                onClick={() => {
+                  navigator("/login");
+                  setOpen(false);
+                }}
+                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-2.5 rounded-xl text-sm"
+              >
+                <User size={16} />
+                <span>Login / Register</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* Hero Image Slider (If enabled) */}
       {openImage && (
-        <div className="absolute inset-0">
+        <div className="relative w-full h-[400px] overflow-hidden">
           <div
             className="flex h-full transition-transform duration-500"
             style={{
@@ -55,174 +232,17 @@ const CommonHeader = ({ title, value }) => {
             }}
           >
             {heroImages.map((img, i) => (
-              <div key={i} className="w-full h-[300px] flex-shrink-0">
+              <div key={i} className="w-full h-full flex-shrink-0">
                 <img
                   src={img}
-                  alt=""
-                  className="w-full h-[300px] object-cover"
+                  alt="hero"
+                  className="w-full h-full object-cover"
                 />
               </div>
             ))}
           </div>
         </div>
       )}
-      {/* Overlay */}
-      {/* <div className="absolute inset-0 bg-black/40"></div> */}
-
-      {/* Navbar */}
-      <div className="relative pointer-events-auto w-[95%] sm:w-[92%] md:w-[90%] lg:w-full mt-4 sm:mt-6 px-3 sm:px-4 md:px-6 py-2 sm:py-3 flex items-center justify-between gap-2">
-        {/* Logo */}
-        <NavLink to="/">
-          <img
-            src={Logo}
-            alt="logo"
-            className="h-6 sm:h-7 md:h-8 w-48 xm:h-64 object-contain"
-          />
-        </NavLink>
-
-        {/* Right Side */}
-        <div className="flex items-center gap-2 md:gap-3">
-          {/* User Dropdown */}
-          <div
-            className="hidden md:block relative"
-            onMouseEnter={() => setShowUserDropdown(true)}
-            onMouseLeave={() => setShowUserDropdown(false)}
-          >
-            <button className="flex items-center gap-2 bg-teal-600 text-white px-4 py-1.5 rounded-full text-sm cursor-pointer hover:bg-teal-700 transition-colors">
-              <User size={16} />
-              User
-            </button>
-
-            {/* Dropdown Menu */}
-            {showUserDropdown && (
-              <div className="absolute -right-20 top-full mt-2 bg-white text-gray-800 rounded-lg shadow-2xl border border-gray-100 py-2 w-48 z-50">
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 text-white">
-                  <BiSolidUpArrow size={20} />
-                </div>
-                <button
-                  onClick={() => {
-                    navigator("/login");
-                    setShowUserDropdown(false);
-                  }}
-                  className="w-full px-4 py-3 text-left text-sm hover:bg-teal-50 hover:text-teal-600 transition-colors font-medium flex items-center gap-3 cursor-pointer active:bg-teal-100"
-                >
-                  <span className="text-base">🔐</span> <span>Login</span>
-                </button>
-                <button
-                  onClick={() => {
-                    navigator("/register");
-                    setShowUserDropdown(false);
-                  }}
-                  className="w-full px-4 py-3 text-left text-sm hover:bg-teal-50 hover:text-teal-600 transition-colors font-medium flex items-center gap-3 cursor-pointer active:bg-teal-100"
-                >
-                  <span className="text-base">📝</span> <span>Register</span>
-                </button>
-                <button
-                  onClick={() => {
-                    navigator("/profile");
-                    setShowUserDropdown(false);
-                  }}
-                  className="w-full px-4 py-3 text-left text-sm hover:bg-teal-50 hover:text-teal-600 transition-colors font-medium flex items-center gap-3 cursor-pointer active:bg-teal-100"
-                >
-                  <span className="text-base">📋</span> <span>Profile</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Mobile Menu Button */}
-          <button
-            className="md:hidden text-gray-700"
-            onClick={() => setOpen(!open)}
-          >
-            {open ? <X size={28} /> : <Menu size={28} />}
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile Menu */}
-      {open && (
-        <div className="absolute top-20 w-[92%] bg-white rounded-xl shadow-lg py-4 flex flex-col items-center gap-4 md:hidden z-20">
-          {menu.map((item, index) => {
-            const Icon = item.icon;
-
-            return (
-              <NavLink
-                key={index}
-                to={item.href}
-                onClick={() => setOpen(false)}
-                className={({ isActive }) =>
-                  `flex items-center gap-2 text-base font-medium ${
-                    isActive
-                      ? "text-emerald-600"
-                      : "text-gray-600 hover:text-emerald-600"
-                  }`
-                }
-              >
-                <Icon size={20} />
-                {item.name}
-              </NavLink>
-            );
-          })}
-
-          {/* Mobile User */}
-          <div className="relative">
-            <div
-              className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-full text-sm cursor-pointer hover:bg-teal-700 transition-colors"
-              onClick={() => setShowMobileUserDropdown(!showMobileUserDropdown)}
-            >
-              <User size={16} />
-              User
-            </div>
-
-            {/* Mobile User Dropdown */}
-            {showMobileUserDropdown && (
-              <div className="absolute -right-2 top-full mt-2 bg-white text-gray-800 rounded-lg shadow-2xl border border-gray-100 py-2 w-40 z-50">
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 text-white">
-                  <BiSolidUpArrow size={20} />
-                </div>
-                <button
-                  onClick={() => {
-                    navigator("/login");
-                    setShowMobileUserDropdown(false);
-                    setOpen(false);
-                  }}
-                  className="w-full px-4 py-3 text-left text-sm hover:bg-teal-50 hover:text-teal-600 transition-colors font-medium flex items-center gap-3 cursor-pointer active:bg-teal-100"
-                >
-                  <span className="text-base">🔐</span> <span>Login</span>
-                </button>
-                <button
-                  onClick={() => {
-                    navigator("/register");
-                    setShowMobileUserDropdown(false);
-                    setOpen(false);
-                  }}
-                  className="w-full px-4 py-3 text-left text-sm hover:bg-teal-50 hover:text-teal-600 transition-colors font-medium flex items-center gap-3 cursor-pointer active:bg-teal-100"
-                >
-                  <span className="text-base">📝</span> <span>Register</span>
-                </button>
-                <button
-                  onClick={() => {
-                    navigator("/profile");
-                    setShowMobileUserDropdown(false);
-                    setOpen(false);
-                  }}
-                  className="w-full px-4 py-3 text-left text-sm hover:bg-teal-50 hover:text-teal-600 transition-colors font-medium flex items-center gap-3 cursor-pointer active:bg-teal-100"
-                >
-                  <span className="text-base">📋</span> <span>Profile</span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Title */}
-      {/* <div className="relative z-10 flex flex-1 items-center justify-center px-6">
-        <h1 className="text-white text-3xl md:text-4xl lg:text-5xl font-bold text-center">
-          Choose Your Dream {title}
-        </h1>
-      </div> */}
     </div>
   );
 };

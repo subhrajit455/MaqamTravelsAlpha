@@ -93,6 +93,244 @@ const Home = () => {
     }
   };
 
+  const cards = [
+    {
+      image: "https://images.unsplash.com/photo-1580418827493-f2b22c0a76cb",
+      title: "Hajj Pilgrimage Services",
+      description:
+        "Experience a fulfilling Hajj journey with expert guidance and tailored travel solutions.",
+    },
+    {
+      image: "https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa",
+      title: "Umrah Pilgrimage Services",
+      description:
+        "Join us for a spiritually enriching Umrah experience with personalized arrangements.",
+    },
+    {
+      image: "https://images.unsplash.com/photo-1506744038136-46273834b3fb",
+      title: "Travel Packages Available",
+      description:
+        "Explore exciting travel packages for unforgettable destinations around the world.",
+    },
+    {
+      image: "https://images.unsplash.com/photo-1580418827493-f2b22c0a76cb",
+      title: "Hajj Pilgrimage Services",
+      description:
+        "Experience a fulfilling Hajj journey with expert guidance and tailored travel solutions.",
+    },
+    {
+      image: "https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa",
+      title: "Umrah Pilgrimage Services",
+      description:
+        "Join us for a spiritually enriching Umrah experience with personalized arrangements.",
+    },
+    {
+      image: "https://images.unsplash.com/photo-1506744038136-46273834b3fb",
+      title: "Travel Packages Available",
+      description:
+        "Explore exciting travel packages for unforgettable destinations around the world.",
+    },
+  ];
+
+  const fallbackMakkahHotels = [
+    {
+      id: "m1",
+      name: "Fairmont Makkah Clock Royal Tower",
+      title: "Fairmont Makkah Clock Royal Tower",
+      location: "Makkah (Near Masjid al-Haram)",
+      city: "Makkah",
+      stay: "5-Star Luxury",
+      duration: "Walking distance to Haram",
+      price: "Rs. 18,500/night",
+      startingPrice: "Rs. 18,500/night",
+      image: "https://images.unsplash.com/photo-1564507592333-c60657eea523?q=80&w=800",
+    },
+    {
+      id: "m2",
+      name: "Pullman ZamZam Makkah",
+      title: "Pullman ZamZam Makkah",
+      location: "Abraj Al Bait, Makkah",
+      city: "Makkah",
+      stay: "5-Star Premium",
+      duration: "Direct access to Haram complex",
+      price: "Rs. 14,200/night",
+      startingPrice: "Rs. 14,200/night",
+      image: "https://images.unsplash.com/photo-1582719508461-905c673771fd?q=80&w=800",
+    },
+    {
+      id: "m3",
+      name: "Swissôtel Makkah",
+      title: "Swissôtel Makkah",
+      location: "Ajyad Street, Makkah",
+      city: "Makkah",
+      stay: "5-Star Comfort",
+      duration: "Spacious family suites",
+      price: "Rs. 15,800/night",
+      startingPrice: "Rs. 15,800/night",
+      image: "https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=800",
+    },
+    {
+      id: "m4",
+      name: "Hilton Suites Makkah",
+      title: "Hilton Suites Makkah",
+      location: "Jabal Omar, Makkah",
+      city: "Makkah",
+      stay: "5-Star Modern",
+      duration: "Overlooking Masjid al-Haram",
+      price: "Rs. 16,900/night",
+      startingPrice: "Rs. 16,900/night",
+      image: "https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=800",
+    },
+    {
+      id: "m1",
+      name: "Fairmont Makkah Clock Royal Tower",
+      title: "Fairmont Makkah Clock Royal Tower",
+      location: "Makkah (Near Masjid al-Haram)",
+      city: "Makkah",
+      stay: "5-Star Luxury",
+      duration: "Walking distance to Haram",
+      price: "Rs. 18,500/night",
+      startingPrice: "Rs. 18,500/night",
+      image: "https://images.unsplash.com/photo-1564507592333-c60657eea523?q=80&w=800",
+    },
+    {
+      id: "m2",
+      name: "Pullman ZamZam Makkah",
+      title: "Pullman ZamZam Makkah",
+      location: "Abraj Al Bait, Makkah",
+      city: "Makkah",
+      stay: "5-Star Premium",
+      duration: "Direct access to Haram complex",
+      price: "Rs. 14,200/night",
+      startingPrice: "Rs. 14,200/night",
+      image: "https://images.unsplash.com/photo-1582719508461-905c673771fd?q=80&w=800",
+    },
+    {
+      id: "m3",
+      name: "Swissôtel Makkah",
+      title: "Swissôtel Makkah",
+      location: "Ajyad Street, Makkah",
+      city: "Makkah",
+      stay: "5-Star Comfort",
+      duration: "Spacious family suites",
+      price: "Rs. 15,800/night",
+      startingPrice: "Rs. 15,800/night",
+      image: "https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=800",
+    },
+    {
+      id: "m4",
+      name: "Hilton Suites Makkah",
+      title: "Hilton Suites Makkah",
+      location: "Jabal Omar, Makkah",
+      city: "Makkah",
+      stay: "5-Star Modern",
+      duration: "Overlooking Masjid al-Haram",
+      price: "Rs. 16,900/night",
+      startingPrice: "Rs. 16,900/night",
+      image: "https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=800",
+    },
+  ];
+
+  const fallbackMadinahHotels = [
+    {
+      id: "med1",
+      name: "Anwar Al Madinah Mövenpick",
+      title: "Anwar Al Madinah Mövenpick",
+      location: "Madinah (Close to Prophet's Mosque)",
+      city: "Madinah",
+      stay: "5-Star Premium",
+      duration: "Directly facing Haram courtyard",
+      price: "Rs. 12,500/night",
+      startingPrice: "Rs. 12,500/night",
+      image: "https://images.unsplash.com/photo-1541432901042-2d8bd64b4a9b?q=80&w=800",
+    },
+    {
+      id: "med2",
+      name: "Pullman ZamZam Madinah",
+      title: "Pullman ZamZam Madinah",
+      location: "Central Northern Area, Madinah",
+      city: "Madinah",
+      stay: "5-Star Luxury",
+      duration: "Steps away from Bab Al Salam",
+      price: "Rs. 11,800/night",
+      startingPrice: "Rs. 11,800/night",
+      image: "https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?q=80&w=800",
+    },
+    {
+      id: "med3",
+      name: "Madinah Hilton",
+      title: "Madinah Hilton",
+      location: "King Fahd Street, Madinah",
+      city: "Madinah",
+      stay: "5-Star Classic",
+      duration: "Few minutes walk to Prophet's Mosque",
+      price: "Rs. 13,000/night",
+      startingPrice: "Rs. 13,000/night",
+      image: "https://images.unsplash.com/photo-1611891487122-2075b9624448?q=80&w=800",
+    },
+    {
+      id: "med4",
+      name: "Dar Al Taqwa Hotel Madinah",
+      title: "Dar Al Taqwa Hotel Madinah",
+      location: "Off Courtyard of Prophet's Mosque",
+      city: "Madinah",
+      stay: "5-Star Luxury",
+      duration: "Prime VIP location",
+      price: "Rs. 17,200/night",
+      startingPrice: "Rs. 17,200/night",
+      image: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?q=80&w=800",
+    },
+    {
+      id: "m1",
+      name: "Fairmont Makkah Clock Royal Tower",
+      title: "Fairmont Makkah Clock Royal Tower",
+      location: "Makkah (Near Masjid al-Haram)",
+      city: "Makkah",
+      stay: "5-Star Luxury",
+      duration: "Walking distance to Haram",
+      price: "Rs. 18,500/night",
+      startingPrice: "Rs. 18,500/night",
+      image: "https://images.unsplash.com/photo-1564507592333-c60657eea523?q=80&w=800",
+    },
+    {
+      id: "m2",
+      name: "Pullman ZamZam Makkah",
+      title: "Pullman ZamZam Makkah",
+      location: "Abraj Al Bait, Makkah",
+      city: "Makkah",
+      stay: "5-Star Premium",
+      duration: "Direct access to Haram complex",
+      price: "Rs. 14,200/night",
+      startingPrice: "Rs. 14,200/night",
+      image: "https://images.unsplash.com/photo-1582719508461-905c673771fd?q=80&w=800",
+    },
+    {
+      id: "m3",
+      name: "Swissôtel Makkah",
+      title: "Swissôtel Makkah",
+      location: "Ajyad Street, Makkah",
+      city: "Makkah",
+      stay: "5-Star Comfort",
+      duration: "Spacious family suites",
+      price: "Rs. 15,800/night",
+      startingPrice: "Rs. 15,800/night",
+      image: "https://images.unsplash.com/photo-1618773928121-c32242e63f39?q=80&w=800",
+    },
+    {
+      id: "m4",
+      name: "Hilton Suites Makkah",
+      title: "Hilton Suites Makkah",
+      location: "Jabal Omar, Makkah",
+      city: "Makkah",
+      stay: "5-Star Modern",
+      duration: "Overlooking Masjid al-Haram",
+      price: "Rs. 16,900/night",
+      startingPrice: "Rs. 16,900/night",
+      image: "https://images.unsplash.com/photo-1590490360182-c33d57733427?q=80&w=800",
+    },
+    
+  ];
+
   const items = [
     {
       icon: GiIndianPalace,
@@ -340,24 +578,36 @@ const Home = () => {
     return () => window.clearInterval(intervalId);
   }, [heroSlides.length]);
 
+  const makkahList = (Array.isArray(hotelJed) && hotelJed.length > 0) ? hotelJed : fallbackMakkahHotels;
+  const madinahList = (Array.isArray(hotelMed) && hotelMed.length > 0) ? hotelMed : fallbackMadinahHotels;
+
   return (
     <>
       <Flight />
-      <section className="bg-[#FAFAF8] mt-56 px-6 font-poppins">
+      <section className="bg-[#FAFAF8] py-16 pt-36 pb-16 px-6 font-poppins border-b border-gray-100">
         <div className="max-w-7xl mx-auto">
           {/* Heading */}
-          <h2 className="text-2xl font-medium text-gray-900 mb-8">
-            Recommended Destination Makkah
-          </h2>
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+            <div>
+              <span className="text-teal-600 font-semibold text-xs uppercase tracking-wider">Top Pilgrimage Stays</span>
+              <h2 className="text-3xl font-bold text-gray-950 mt-1">
+                Recommended Destination Makkah
+              </h2>
+            </div>
+            <p className="text-gray-500 text-sm max-w-md hidden md:block">
+              Highly rated hotels near Masjid al-Haram, verified for comfort, premium amenities, and spiritual proximity.
+            </p>
+          </div>
 
           {/* Wrapper */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             {/* Left Arrow */}
             <button
               onClick={() => scroll("left")}
-              className="bg-teal-200 hover:bg-teal-300 p-2 rounded-md cursor-pointer relative z-50"
+              className="bg-white hover:bg-teal-600 text-teal-700 hover:text-white p-3 rounded-full shadow-md hover:shadow-lg border border-gray-100 cursor-pointer transition-all duration-300 relative z-40 active:scale-95 flex items-center justify-center animate-fade-in"
+              aria-label="Scroll left"
             >
-              <ChevronLeft size={18} />
+              <ChevronLeft size={20} className="stroke-[2.5]" />
             </button>
 
             {/* Scrollable Cards */}
@@ -365,62 +615,70 @@ const Home = () => {
               ref={scrollRef}
               onMouseEnter={() => setIsHovered(true)}
               onMouseLeave={() => setIsHovered(false)}
-              className="flex gap-4 overflow-x-auto scrollbar-hide"
+              className="flex gap-6 overflow-x-auto scrollbar-hide py-4 px-2 flex-1"
             >
-              {packages &&
-                packages.map((item, index) => (
-                  <DestinationCard key={index} item={item} />
-                ))}
+              {makkahList.map((item, index) => (
+                <DestinationCard key={index} item={item} />
+              ))}
             </div>
 
             {/* Right Arrow */}
             <button
               onClick={() => scroll("right")}
-              className="bg-teal-200 hover:bg-teal-300 p-2 rounded-md cursor-pointer relative z-50"
+              className="bg-white hover:bg-teal-600 text-teal-700 hover:text-white p-3 rounded-full shadow-md hover:shadow-lg border border-gray-100 cursor-pointer transition-all duration-300 relative z-40 active:scale-95 flex items-center justify-center animate-fade-in"
+              aria-label="Scroll right"
             >
-              <ChevronRight size={18} />
+              <ChevronRight size={20} className="stroke-[2.5]" />
             </button>
           </div>
         </div>
       </section>
 
-      <section className="bg-[#F3F4F6] py-14 px-6 font-poppins">
+      <section className="bg-[#F9FAFB] py-16 px-6 font-poppins">
         <div className="max-w-7xl mx-auto">
           {/* Heading */}
-          <h2 className="text-2xl font-medium text-gray-900 mb-8">
-            Recommended Destination Madinah
-          </h2>
+          <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+            <div>
+              <span className="text-teal-600 font-semibold text-xs uppercase tracking-wider">Peaceful & Sacred Retreats</span>
+              <h2 className="text-3xl font-bold text-gray-950 mt-1">
+                Recommended Destination Madinah
+              </h2>
+            </div>
+            <p className="text-gray-500 text-sm max-w-md hidden md:block">
+              Enjoy peaceful visits to the Prophet's Mosque with handpicked, close-proximity hotel selections.
+            </p>
+          </div>
 
           {/* Wrapper */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             {/* Left Arrow */}
             <button
               onClick={() => {
                 scroll2("left");
-                console.log("Click ----");
               }}
-              className="bg-teal-200 hover:bg-teal-300 p-2 rounded-md cursor-pointer"
+              className="bg-white hover:bg-teal-600 text-teal-700 hover:text-white p-3 rounded-full shadow-md hover:shadow-lg border border-gray-100 cursor-pointer transition-all duration-300 relative z-40 active:scale-95 flex items-center justify-center"
+              aria-label="Scroll left"
             >
-              <ChevronLeft size={18} />
+              <ChevronLeft size={20} className="stroke-[2.5]" />
             </button>
 
             {/* Scrollable Cards */}
             <div
               ref={scrollRef2}
-              className="flex gap-4 overflow-x-auto scrollbar-hide"
+              className="flex gap-6 overflow-x-auto scrollbar-hide py-4 px-2 flex-1"
             >
-              {packages &&
-                packages.map((item, index) => (
-                  <DestinationCard key={index} item={item} />
-                ))}
+              {madinahList.map((item, index) => (
+                <DestinationCard key={index} item={item} />
+              ))}
             </div>
 
             {/* Right Arrow */}
             <button
               onClick={() => scroll2("right")}
-              className="bg-teal-200 hover:bg-teal-300 p-2 rounded-md cursor-pointer"
+              className="bg-white hover:bg-teal-600 text-teal-700 hover:text-white p-3 rounded-full shadow-md hover:shadow-lg border border-gray-100 cursor-pointer transition-all duration-300 relative z-40 active:scale-95 flex items-center justify-center"
+              aria-label="Scroll right"
             >
-              <ChevronRight size={18} />
+              <ChevronRight size={20} className="stroke-[2.5]" />
             </button>
           </div>
         </div>
@@ -449,7 +707,7 @@ const Home = () => {
           </h2>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 justify-center items-center">
-            {packages.map((pkg, index) => (
+            {cards.map((pkg, index) => (
               <DestinationCard key={index} item={pkg} />
             ))}
           </div>
@@ -538,7 +796,7 @@ const Home = () => {
             <img
               src={image}
               alt="Decorative background"
-              className=" w-[360px]  "
+              className=" w-[360px]"
             />
           </div>
         </div>

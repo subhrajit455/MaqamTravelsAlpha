@@ -18,3 +18,75 @@
 html {
   scroll-behavior: smooth;
 }
+
+/* @import "tailwindcss";
+
+@theme {
+  --animate-plane: plane 3s linear infinite;
+}
+
+@keyframes plane {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(280px);
+  }
+} */
+
+
+@keyframes planeMove {
+    0%{
+        left:-60px;
+        transform:translateY(0) rotate(-5deg);
+    }
+
+    50%{
+        transform:translateY(-12px) rotate(0deg);
+    }
+
+    100%{
+        left:100%;
+        transform:translateY(0) rotate(5deg);
+    }
+}
+
+/* .plane{
+    animation:planeMove 4s linear infinite;
+} */
+
+@keyframes progress{
+    from{
+        width:0%;
+    }
+
+    to{
+        width:100%;
+    }
+}
+
+.progress{
+    height:100%;
+    background:#2563eb;
+    animation:progress 4s linear infinite;
+}
+
+@keyframes cloudMove{
+    from{
+        transform:translateX(-20%);
+    }
+
+    to{
+        transform:translateX(120%);
+    }
+}
+
+.clouds{
+    width:220px;
+    height:60px;
+    background:
+      radial-gradient(circle,#dbeafe 30%,transparent 31%) 0 20px/60px 60px repeat-x;
+
+    animation:cloudMove 18s linear infinite;
+}

@@ -227,9 +227,9 @@ const FlightSearch = () => {
 
   return (
     <>
-      <div className="relative lg:pb-40">
+      <div className="relative pb-36 md:pb-24 lg:pb-16">
         <CommonHeader title="Flight" value={true} />
-        <div className="absolute md:top-6 lg:top-20 left-1/2  -translate-x-1/2 w-[100%] lg:w-[100%]">
+        <div className="absolute bottom-10 translate-y-1/2 left-1/2 -translate-x-1/2 w-[90%] px-4 z-40">
           <CommonFlightHotelSearchBox
             selectedFrom={selectedFrom}
             formatSuggestion={formatSuggestion}

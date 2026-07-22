@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import {
   ChevronDown,
   Contact,
@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Plane,
 } from "lucide-react";
+import { set } from "react-hook-form";
 
 const DeparturePlace = ({
   fromSuggestions,
@@ -16,14 +17,22 @@ const DeparturePlace = ({
   setSelectedFrom,
   setFromSuggestions,
   setShowFromSuggestions,
+  setIsDisabled
 }) => {
-  const handleSelectFrom = (suggestion) => {
-    console.log("Selected From suggestion:", suggestion);
-    setFromQuery(formatSuggestion(suggestion));
-    setSelectedFrom(suggestion);
-    setFromSuggestions([]);
-    setShowFromSuggestions(false);
-  };
+const handleSelectFrom = (suggestion) => {
+  setFromQuery(formatSuggestion(suggestion));
+  setSelectedFrom(suggestion);
+  setFromSuggestions([]);
+  setShowFromSuggestions(false);
+  setIsDisabled(false);
+
+  // Save selected departure airport
+  localStorage.setItem(
+    "selectedFrom",
+    JSON.stringify(suggestion)
+  );
+};
+
 
   const handleSwapLocations = () => {
     setFromQuery(toQuery);
@@ -34,7 +43,21 @@ const DeparturePlace = ({
     setToSuggestions([]);
     setShowFromSuggestions(false);
     setShowToSuggestions(false);
+    setIsDisabled(false); // Enable the search button after swapping locations
   };
+
+
+  useEffect(() => {
+  const savedFrom = JSON.parse(localStorage.getItem("selectedFrom"));
+  // const savedTo = JSON.parse(localStorage.getItem("selectedTo"));
+
+  if (savedFrom) {
+    setSelectedFrom(savedFrom);
+    setFromQuery(formatSuggestion(savedFrom));
+  }
+
+  
+}, []);
 
   return (
     <>

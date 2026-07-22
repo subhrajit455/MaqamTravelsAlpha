@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useSelector, useDispatch } from "react-redux";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import DeparturePlace from "../../pages/DeparturePlace";
@@ -6,6 +7,7 @@ import ArrivalPlace from "../../pages/ArrivalPlace";
 import TravellerClass from "../travellerclasses/TravellerClass";
 import HotelSearch from "../../pages/HotelSearch";
 import { useNavigate, useLocation } from "react-router-dom";
+import { fetchFlights } from "../reducer/FlightSearchSlice";
 import {
   ChevronDown,
   Contact,
@@ -111,6 +113,10 @@ const CommonFlightHotelSearchBox = ({
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const dispatch = useDispatch();
+  const { flightsData, loading, error } = useSelector(
+    (state) => state.flightSearch,
+  );
   const [activeTab, setActiveTab] = useState("One Way");
   const [searchbox, setSearchbox] = useState("FLIGHT");
   const [startDate, setStartDate] = useState(new Date());
@@ -134,6 +140,7 @@ const CommonFlightHotelSearchBox = ({
     travelClass: "Economy",
   });
   const [showNavbar, setShowNavbar] = useState(true);
+  const [isDisabled, setIsDisabled] = useState(true);
   const formatSuggestion = (item) =>
     `${item?.name || ""} ` || item?.iataCode || "";
   const handleSwapLocations = () => {
@@ -151,386 +158,47 @@ const CommonFlightHotelSearchBox = ({
     setShowNavbar(true);
   };
 
-  console.log("Selected From:", selectedFrom);
-  console.log("Selected To:", selectedTo);
-  console.log("startDate",startDate);
-  console.log("endDate",endDate);
-  console.log("Travellers:", travellers);
+  const searchFlights = {
+    origin: selectedFrom?.iataCode,
+    destination: selectedTo?.iataCode,
+    departureDate: startDate?.toISOString().split("T")[0],
+    returnDate: endDate?.toISOString().split("T")[0],
+    passengers: {
+      adults: travellers?.adult,
+      children: travellers?.child,
+      infants: travellers?.infant,
+    },
+    journeyType: travellers?.travelClass,
+  };
 
+  const handleFlightSearch = () => {
+    // Save search payload
+    localStorage.setItem("flightSearch", JSON.stringify(searchFlights));
 
-
-
+    // Dispatch API
+    dispatch(fetchFlights(searchFlights));
+  };
 
   return (
     <>
       {headerChange ? (
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-[-40px] z-[9999] top-4  w-full pointer-events-none">
-          <div className="relative grid grid-rows-2 justify-items-center items-center pointer-events-auto">
-            <div className="w-64 max-w-sm mx-auto z-50 mb-10">
-              <div className="grid grid-cols-2 gap-3">
-                {services.map((item, index) => {
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      onClick={() => setSearchbox(item.name)}
-                      key={item.name}
-                      className={`
-                        h-8
-                        rounded-lg
-                        shadow-md
-                        flex
-                        flex-col
-                        items-center
-                        justify-center
-                        transition-all
-                        duration-300
-                        cursor-pointer
-                        ${
-                          searchbox === item.name
-                            ? "bg-gradient-to-r from-green-800 to-green-600 text-white"
-                            : "bg-white text-[#FF7A00] hover:bg-orange-50"
-                        }
-                      `}
-                    >
-                      <Icon size={12} strokeWidth={2.2} className="" />
-
-                      <span className="text-xs font-bold ">{item.name}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
+        <div className="relative w-full px-4 py-4 z-40">
+          <div className="relative flex flex-col items-center max-w-full mx-auto">
+            {/* Flight Search Card Container */}
             {searchbox === "FLIGHT" && (
-              <div className="absolute pointer-events-auto md:top-60 max-h-24 lg:top-5 lg:left-1/2 left-40 -translate-x-1/2 w-[100%] lg:w-[80%] bg-white rounded-lg  backdrop-blur-md shadow-[0_20px_60px_rgba(0,0,0,0.15)]">
-                <div className="w-full lg:w-[100%] mx-auto flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 z-10 top-2 lg:relative">
-                  {/* Left Side */}
-                  {/* <div className="flex justify-center lg:justify-start">
-                  <div className="inline-flex flex-wrap gap-2 bg-gray-200 px-3 py-1 rounded-3xl">
-                    {travellingWay?.map((way, index) => (
-                      <div
-                        key={index}
-                        onClick={() => setActiveTab(way)}
-                        className={`px-4 py-1 rounded-3xl font-semibold cursor-pointer transition-all duration-300 whitespace-nowrap ${
-                          activeTab === way
-                            ? "bg-green-800 text-white"
-                            : "bg-transparent text-gray-700 hover:bg-gray-300"
-                        }`}
-                      >
-                        {way}
-                      </div>
-                    ))}
-                  </div>
-                </div> */}
-
-                  {/* Right Side */}
-                  {/* <div className="text-center lg:text-right">
-                  <h6 className="text-lg font-medium">
-                    Book Domestic and International Flight
-                  </h6>
-                </div> */}
-                </div>
+              <div className="w-full lg:w-[90%] bg-white/95 backdrop-blur-md rounded-3xl p-4 sm:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-gray-100 transition-all">
                 <div className="relative">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-0 border border-gray-200 rounded- max-w-auto m-4">
-                    {/* From */}
+                  {/* Grid of Inputs */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-0 border border-gray-100 rounded-2xl bg-white overflow-hidden shadow-sm divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
+                    {/* Departure Airport */}
                     <div
                       onClick={() => {
                         setFromSuggestions(dummySuggestions);
                         setShowFromSuggestions(true);
                       }}
-                      className="relative cursor-pointer hover:bg-gray-50 transition px-2 py-2"
+                      className="relative cursor-pointer hover:bg-teal-50/15 group transition duration-300 p-4 flex flex-col justify-between"
                     >
-                      <p className="text-xs text-gray-800">Departure Airport</p>
-                      <input
-                        type="text"
-                        value={fromQuery}
-                        onFocus={() => {
-                          setFromSuggestions(dummySuggestions);
-                          setShowFromSuggestions(true);
-                        }}
-                        onChange={(e) => setFromQuery(e.target.value)}
-                        placeholder="Enter city or airport"
-                        className=" text-sm font-bold outline-none bg-transparent"
-                      />
-                      <p className="text-xs text-gray-600 truncate">
-                        {selectedFrom?.airport || "Search Airport"}
-                      </p>
-                    </div>
-
-                    <DeparturePlace
-                      fromSuggestions={fromSuggestions}
-                      showFromSuggestions={showFromSuggestions}
-                      setFromQuery={setFromQuery}
-                      formatSuggestion={formatSuggestion}
-                      selectedFrom={selectedFrom}
-                      setSelectedFrom={setSelectedFrom}
-                      setFromSuggestions={setFromSuggestions}
-                      setShowFromSuggestions={setShowFromSuggestions}
-                    />
-                    {/* To */}
-                    <div
-                      onClick={() => {
-                        setToSuggestions(dummySuggestions);
-                        setShowToSuggestions(true);
-                      }}
-                      className="border-t md:border-t-0 md:border-l border-gray-200 h-18 cursor-pointer hover:bg-gray-50 transition px-2 py-2"
-                    >
-                      <p className="text-xs mb-1">Arrival Airport</p>
-                      <input
-                        type="text"
-                        value={toQuery}
-                        onFocus={() => {
-                          setToSuggestions(dummySuggestions);
-                          setShowToSuggestions(true);
-                        }}
-                        onChange={(e) => setToQuery(e.target.value)}
-                        placeholder="Enter city or airport"
-                        className="w-full text-xs font-bold outline-none bg-transparent"
-                      />
-                      <p className="text-xs text-gray-600 truncate">
-                        {selectedTo?.airport || "Search Airport"}
-                      </p>
-                    </div>
-
-                    <ArrivalPlace
-                      toSuggestions={toSuggestions}
-                      showToSuggestions={showToSuggestions}
-                      setToQuery={setToQuery}
-                      formatSuggestion={formatSuggestion}
-                      selectedTo={selectedTo}
-                      setToSuggestions={setToSuggestions}
-                      setSelectedTo={setSelectedTo}
-                      setShowToSuggestions={setShowToSuggestions}
-                    />
-
-                    {/* Departure */}
-                    <div className="border-t md:border-t-0 md:border-l border-gray-200 cursor-pointer hover:bg-gray-50 transition px-2 py-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-gray-500 uppercase tracking-wide">
-                          Departure
-                        </p>
-                        <ChevronDown className="w-4 h-4 text-[#2276E3]" />
-                      </div>
-                      {/* <p className="text-2xl font-bold text-gray-900">2 Jul 26</p>
-                     <p className="text-sm text-gray-600">Monday</p> */}
-
-                      <DatePicker
-                        selected={startDate}
-                        onChange={(date) => setStartDate(date)}
-                        dateFormat="d MMM''yy"
-                        wrapperClassName="w-full"
-                        className="w-full text-sm font-bold text-gray-900 outline-none bg-transparent"
-                      />
-
-                      <p className="text-xs text-gray-600">
-                        {startDate
-                          ? startDate.toLocaleDateString("en-US", {
-                              weekday: "long",
-                            })
-                          : ""}
-                      </p>
-                    </div>
-
-                    {/* Return */}
-                    <div className="border-t md:border-t-0 md:border-l h-18 border-gray-200 cursor-pointer hover:bg-gray-50 transition px-2 py-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs text-gray-500 uppercase tracking-wide">
-                          Return
-                        </p>
-                        <ChevronDown className="w-4 h-4 text-[#2276E3]" />
-                      </div>
-                      <DatePicker
-                        selected={endDate}
-                        onChange={(date) => setEndDate(date)}
-                        dateFormat="d MMM''yy"
-                        wrapperClassName="w-full"
-                        className="w-full text-sm font-bold text-gray-900 outline-none bg-transparent"
-                      />
-
-                      <p className="text-xs text-gray-600">
-                        {endDate
-                          ? endDate.toLocaleDateString("en-US", {
-                              weekday: "long",
-                            })
-                          : ""}
-                      </p>
-                    </div>
-
-                    {/* Travellers & Class */}
-                    <TravellerClass
-                      travellers={travellers}
-                      setTravellers={setTravellers}
-                      setSelectedClass={setSelectedClass}
-                      selectedClass={selectedClass}
-                    />
-                  </div>
-                  {/* Swap Button */}
-                  <button
-                    onClick={handleSwapLocations}
-                    className="
-                  hidden 
-                  lg:flex
-                  absolute
-                  left-[20%]
-                  top-1/2
-                  -translate-x-1/2
-                  -translate-y-1/2
-                  w-10
-                  h-10
-                  rounded-full
-                  bg-green-800    
-                  items-center
-                  justify-center
-                  shadow-lg
-                  border-4
-                  border-white
-                  z-20
-                  cursor-pointer
-                "
-                  >
-                    <div className="flex flex-col -space-y-1">
-                      <ArrowLeft
-                        size={14}
-                        strokeWidth={3}
-                        className="text-white"
-                      />
-                      <ArrowRight
-                        size={14}
-                        strokeWidth={3}
-                        className="text-white"
-                      />
-                    </div>
-                  </button>
-                </div>
-
-                {/*Select Fare Type*/}
-
-                <SelectFareType
-                  fareTypes={fareTypes}
-                  selectedFare={selectedFare}
-                  setSelectedFare={setSelectedFare}
-                />
-
-                <div className="flex justify-center items-center relative -mt-3">
-                  <button
-                    // onClick={() =>
-                    //   navigate("/flight-list", {
-                    //     state: {
-                    //       flights: [{ flightName: "Flight1" }],
-                    //     },
-                    //   })
-                    // }
-
-                    onClick={() =>
-                      navigate("/flight-list", {
-                        state: {
-                          flights: [
-                            {
-                              flightName: "Flight11",
-                              showNavbar: showNavbar,
-                            },
-                          ],
-                        },
-                      })
-                    }
-                    className="absolute right-2 bg-gradient-to-r from-green-800 to-green-600
-                      hover:from-green-800 to-green-600
-                      text-white font-bold uppercase
-                      px-2 py-2
-                      rounded-md
-                      shadow-md
-                      transition-all duration-300
-                      cursor-pointer"
-                  >
-                    Search {searchbox}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {searchbox === "HOTEL" && <HotelSearch searchbox={searchbox} />}
-          </div>
-        </div>
-      ) : (
-        <div className="absolute left-1/2 -translate-x-1/2 bottom-[-40px] z-[9999] top-4 lg:top-10 w-full px-4 pointer-events-none">
-          <div className="relative grid grid-rows-2 justify-items-center items-center pointer-events-auto">
-            <div className="w-64 max-w-sm mx-auto z-50 mb-110">
-              <div className="grid grid-cols-2 gap-3">
-                {services.map((item, index) => {
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      onClick={() => setSearchbox(item.name)}
-                      key={item.name}
-                      className={`
-                        h-16
-                        rounded-lg
-                        shadow-md
-                        flex
-                        flex-col
-                        items-center
-                        justify-center
-                        transition-all
-                        duration-300
-                        cursor-pointer
-                        ${
-                          searchbox === item.name
-                            ? "bg-gradient-to-r from-green-800 to-green-600 text-white"
-                            : "bg-white text-[#FF7A00] hover:bg-orange-50"
-                        }
-                      `}
-                    >
-                      <Icon size={24} strokeWidth={2.2} className="mb-2" />
-                      <span className="text-sm font-bold tracking-wide">
-                        {item.name}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {searchbox === "FLIGHT" && (
-              <div className="absolute pointer-events-auto md:top-60  lg:top-10 lg:left-1/2 left-40 -translate-x-1/2 w-[100%] lg:w-[80%] bg-white rounded-3xl  backdrop-blur-md p-4 shadow-[0_20px_60px_rgba(0,0,0,0.15)]">
-                <div className="w-full lg:w-[100%] mx-auto flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 z-10 top-2 lg:relative">
-                  {/* Left Side */}
-                  <div className="flex justify-center lg:justify-start">
-                    <div className="inline-flex flex-wrap gap-2 bg-gray-200 px-3 py-1 rounded-3xl">
-                      {travellingWay?.map((way, index) => (
-                        <div
-                          key={index}
-                          onClick={() => setActiveTab(way)}
-                          className={`px-4 py-1 rounded-3xl font-semibold cursor-pointer transition-all duration-300 whitespace-nowrap ${
-                            activeTab === way
-                              ? "bg-green-800 text-white"
-                              : "bg-transparent text-gray-700 hover:bg-gray-300"
-                          }`}
-                        >
-                          {way}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Right Side */}
-                  <div className="text-center lg:text-right">
-                    <h6 className="text-lg font-medium">
-                      Book Domestic and International Flight
-                    </h6>
-                  </div>
-                </div>
-
-                <div className="relative w-[100%] mx-auto mt-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-0 border border-gray-200 rounded-lg w-full mx-auto m-4">
-                    {/* From */}
-                    <div
-                      onClick={() => {
-                        setFromSuggestions(dummySuggestions);
-                        setShowFromSuggestions(true);
-                      }}
-                      className="relative p-4 cursor-pointer hover:bg-gray-50 transition"
-                    >
-                      <p className="text-xs text-gray-800 uppercase tracking-wide mb-1 font-bold">
+                      <p className="text-[10px] font-bold text-teal-700 uppercase tracking-widest mb-1.5 flex items-center gap-1">
                         Departure Airport
                       </p>
                       <input
@@ -542,9 +210,9 @@ const CommonFlightHotelSearchBox = ({
                         }}
                         onChange={(e) => setFromQuery(e.target.value)}
                         placeholder="Enter city or airport"
-                        className="w-full text-2xl font-bold outline-none bg-transparent"
+                        className="text-sm font-extrabold text-gray-900 outline-none bg-transparent w-full truncate focus:text-teal-700 transition"
                       />
-                      <p className="text-sm text-gray-600 truncate">
+                      <p className="text-xs text-gray-400 mt-1 font-medium truncate group-hover:text-teal-600 transition">
                         {selectedFrom?.airport || "Search Airport"}
                       </p>
                     </div>
@@ -558,16 +226,19 @@ const CommonFlightHotelSearchBox = ({
                       setSelectedFrom={setSelectedFrom}
                       setFromSuggestions={setFromSuggestions}
                       setShowFromSuggestions={setShowFromSuggestions}
+                      isDisabled={isDisabled}
+                      setIsDisabled={setIsDisabled}
                     />
-                    {/* To */}
+
+                    {/* Arrival Airport */}
                     <div
                       onClick={() => {
                         setToSuggestions(dummySuggestions);
                         setShowToSuggestions(true);
                       }}
-                      className="p-4 border-t md:border-t-0 md:border-l border-gray-200 cursor-pointer hover:bg-gray-50 transition"
+                      className="border-t md:border-t-0 md:border-l border-gray-100 cursor-pointer hover:bg-teal-50/15 group transition duration-300 p-4 flex flex-col justify-between"
                     >
-                      <p className="text-xs text-gray-800 uppercase tracking-wide mb-1 font-bold px-2">
+                      <p className="text-[10px] font-bold text-teal-700 uppercase tracking-widest mb-1.5 flex items-center gap-1">
                         Arrival Airport
                       </p>
                       <input
@@ -579,9 +250,290 @@ const CommonFlightHotelSearchBox = ({
                         }}
                         onChange={(e) => setToQuery(e.target.value)}
                         placeholder="Enter city or airport"
-                        className="w-full text-2xl font-bold outline-none bg-transparent px-2"
+                        className="w-full box-border px-3 text-lg font-extrabold text-gray-900 outline-none bg-transparent"
                       />
-                      <p className="text-sm text-gray-600 truncate px-2">
+                      <p className="text-xs text-gray-400 mt-1 font-medium truncate group-hover:text-teal-600 transition">
+                        {selectedTo?.airport || "Search Airport"}
+                      </p>
+                    </div>
+
+                    <ArrivalPlace
+                      toSuggestions={toSuggestions}
+                      showToSuggestions={showToSuggestions}
+                      setToQuery={setToQuery}
+                      formatSuggestion={formatSuggestion}
+                      selectedTo={selectedTo}
+                      setToSuggestions={setToSuggestions}
+                      setSelectedTo={setSelectedTo}
+                      setShowToSuggestions={setShowToSuggestions}
+                      isDisabled={isDisabled}
+                      setIsDisabled={setIsDisabled}
+                    />
+
+                    {/* Departure Date */}
+                    <div className="border-t md:border-t-0 md:border-l border-gray-100 cursor-pointer hover:bg-teal-50/15 group transition duration-300 p-4 flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="text-[10px] font-bold text-teal-700 uppercase tracking-widest">
+                          Departure
+                        </p>
+                        <ChevronDown className="w-3.5 h-3.5 text-teal-600 transition-transform group-hover:translate-y-0.5" />
+                      </div>
+
+                      <DatePicker
+                        selected={startDate}
+                        onChange={(date) => setStartDate(date)}
+                        dateFormat="d MMM''yy"
+                        wrapperClassName="w-full"
+                        className="w-full text-sm font-extrabold text-gray-900 outline-none bg-transparent cursor-pointer focus:text-teal-700 transition"
+                      />
+
+                      <p className="text-xs text-gray-400 mt-1 font-medium truncate group-hover:text-teal-600 transition">
+                        {startDate
+                          ? startDate.toLocaleDateString("en-US", {
+                              weekday: "long",
+                            })
+                          : ""}
+                      </p>
+                    </div>
+
+                    {/* Return Date */}
+                    <div className="border-t md:border-t-0 md:border-l border-gray-100 cursor-pointer hover:bg-teal-50/15 group transition duration-300 p-4 flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="text-[10px] font-bold text-teal-700 uppercase tracking-widest">
+                          Return
+                        </p>
+                        <ChevronDown className="w-3.5 h-3.5 text-teal-600 transition-transform group-hover:translate-y-0.5" />
+                      </div>
+                      <DatePicker
+                        selected={endDate}
+                        onChange={(date) => setEndDate(date)}
+                        dateFormat="d MMM''yy"
+                        wrapperClassName="w-full"
+                        className="w-full text-sm font-extrabold text-gray-900 outline-none bg-transparent cursor-pointer focus:text-teal-700 transition"
+                      />
+
+                      <p className="text-xs text-gray-400 mt-1 font-medium truncate group-hover:text-teal-600 transition">
+                        {endDate
+                          ? endDate.toLocaleDateString("en-US", {
+                              weekday: "long",
+                            })
+                          : ""}
+                      </p>
+                    </div>
+
+                    {/* Travellers & Class */}
+                    <TravellerClass
+                      travellers={travellers}
+                      setTravellers={setTravellers}
+                      setSelectedClass={setSelectedClass}
+                      selectedClass={selectedClass}
+                      isDisabled={isDisabled}
+                      setIsDisabled={setIsDisabled}
+                    />
+                  </div>
+
+                  {/* Location Swap Button */}
+                  <button
+                    onClick={handleSwapLocations}
+                    title="Swap Departure & Arrival"
+                    className="
+                      hidden 
+                      lg:flex
+                      absolute
+                      left-[20%]
+                      top-1/2
+                      -translate-x-1/2
+                      -translate-y-1/2
+                      w-9
+                      h-9
+                      rounded-full
+                      bg-white
+                      border
+                      border-gray-100
+                      text-teal-700
+                      hover:bg-teal-600
+                      hover:text-white
+                      items-center
+                      justify-center
+                      shadow-md
+                      z-30
+                      cursor-pointer
+                      transition-all
+                      duration-500
+                      hover:rotate-180
+                      active:scale-95
+                    "
+                  >
+                    <div className="flex flex-col -space-y-1">
+                      <ArrowLeft size={12} strokeWidth={2.5} />
+                      <ArrowRight size={12} strokeWidth={2.5} />
+                    </div>
+                  </button>
+                </div>
+
+                {/* Bottom Bar: Fare Type Selection & Search Button */}
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-3 pt-2 border-t border-gray-100">
+                  <div className="w-full sm:w-auto">
+                    <SelectFareType
+                      fareTypes={fareTypes}
+                      selectedFare={selectedFare}
+                      setSelectedFare={setSelectedFare}
+                    />
+                  </div>
+
+                  <button
+                    disabled={isDisabled}
+                    onClick={() => handleFlightSearch()}
+                    className={`
+                      w-full sm:w-auto
+                      bg-gradient-to-r from-teal-600 to-emerald-600
+                      hover:from-teal-700 hover:to-emerald-700
+                      text-white font-bold text-xs uppercase tracking-wider
+                      px-8 py-3
+                      rounded-full shadow-md hover:shadow-lg
+                      transition-all duration-300
+                      ${
+                        isDisabled
+                          ? "opacity-50 cursor-not-allowed"
+                          : "cursor-pointer active:scale-95"
+                      }
+                    `}
+                  >
+                    Search {searchbox}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {searchbox === "HOTEL" && <HotelSearch searchbox={searchbox} />}
+          </div>
+        </div>
+      ) : (
+        <div className="w-full px-4 relative z-40 pointer-events-auto">
+          <div className="relative flex flex-col items-center justify-center">
+            {/* Service selector tabs (Flight/Hotel selector) */}
+            <div className="w-fit mx-auto z-50 bg-white/90 backdrop-blur-md p-1.5 rounded-full shadow-lg border border-gray-100 flex gap-2">
+              {services.map((item) => {
+                const Icon = item.icon;
+                const isSelected = searchbox === item.name;
+                return (
+                  <button
+                    onClick={() => setSearchbox(item.name)}
+                    key={item.name}
+                    className={`
+                      px-6 py-2.5
+                      rounded-full
+                      flex items-center gap-2
+                      transition-all duration-300
+                      cursor-pointer text-xs font-bold tracking-wider
+                      ${
+                        isSelected
+                          ? "bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-md shadow-teal-600/10"
+                          : "bg-transparent text-gray-700 hover:bg-teal-50/20"
+                      }
+                    `}
+                  >
+                    <Icon size={16} strokeWidth={2.5} />
+                    <span>{item.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {searchbox === "FLIGHT" && (
+              <div className="w-full bg-white rounded-3xl p-5 sm:p-6 shadow-[0_20px_60px_rgba(0,0,0,0.12)] border border-gray-100 pb-12 relative pointer-events-auto">
+                <div className="w-full mx-auto flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
+                  {/* Left Side: travellingWay selection */}
+                  <div className="flex justify-center lg:justify-start">
+                    <div className="inline-flex flex-wrap gap-1 bg-gray-100 p-1 rounded-full border border-gray-200/50">
+                      {travellingWay?.map((way, index) => (
+                        <div
+                          key={index}
+                          onClick={() => setActiveTab(way)}
+                          className={`px-5 py-1.5 rounded-full text-xs font-bold cursor-pointer transition-all duration-300 whitespace-nowrap ${
+                            activeTab === way
+                              ? "bg-teal-600 text-white shadow-sm"
+                              : "bg-transparent text-gray-600 hover:bg-gray-200/60"
+                          }`}
+                        >
+                          {way}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Right Side Info */}
+                  <div className="text-center lg:text-right">
+                    <span className="text-[10px] font-bold text-teal-700 uppercase tracking-widest bg-teal-50 px-3 py-1.5 rounded-full">
+                      Book Domestic and International Flights
+                    </span>
+                  </div>
+                </div>
+
+                <div className="relative w-full mx-auto mt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-0 border border-gray-100 rounded-2xl w-full mx-auto bg-white overflow-hidden shadow-sm divide-y lg:divide-y-0 lg:divide-x divide-gray-100 my-4">
+                    {/* From */}
+                    <div
+                      onClick={() => {
+                        setFromSuggestions(dummySuggestions);
+                        setShowFromSuggestions(true);
+                      }}
+                      className="relative p-4 cursor-pointer hover:bg-teal-50/15 group transition duration-300 flex flex-col justify-between"
+                    >
+                      <p className="text-[10px] font-bold text-teal-700 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                        Departure Airport
+                      </p>
+                      <input
+                        type="text"
+                        value={fromQuery}
+                        onFocus={() => {
+                          setFromSuggestions(dummySuggestions);
+                          setShowFromSuggestions(true);
+                        }}
+                        onChange={(e) => setFromQuery(e.target.value)}
+                        placeholder="Enter city or airport"
+                        className="w-full text-lg font-extrabold text-gray-900 outline-none bg-transparent focus:text-teal-700 transition"
+                      />
+                      <p className="text-xs text-gray-400 mt-1 font-medium truncate group-hover:text-teal-600 transition">
+                        {selectedFrom?.airport || "Search Airport"}
+                      </p>
+                    </div>
+
+                    <DeparturePlace
+                      fromSuggestions={fromSuggestions}
+                      showFromSuggestions={showFromSuggestions}
+                      setFromQuery={setFromQuery}
+                      formatSuggestion={formatSuggestion}
+                      selectedFrom={selectedFrom}
+                      setSelectedFrom={setSelectedFrom}
+                      setFromSuggestions={setFromSuggestions}
+                      setShowFromSuggestions={setShowFromSuggestions}
+                      setIsDisabled={setIsDisabled}
+                    />
+
+                    {/* To */}
+                    <div
+                      onClick={() => {
+                        setToSuggestions(dummySuggestions);
+                        setShowToSuggestions(true);
+                      }}
+                      className="p-4 border-t md:border-t-0 md:border-l border-gray-100 cursor-pointer hover:bg-teal-50/15 group transition duration-300 flex flex-col justify-between"
+                    >
+                      <p className="text-[10px] font-bold text-teal-700 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                        Arrival Airport
+                      </p>
+                      <input
+                        type="text"
+                        value={toQuery}
+                        onFocus={() => {
+                          setToSuggestions(dummySuggestions);
+                          setShowToSuggestions(true);
+                        }}
+                        onChange={(e) => setToQuery(e.target.value)}
+                        placeholder="Enter city or airport"
+                        className="w-full box-border px-3 text-lg font-extrabold text-gray-900 outline-none bg-transparent"
+                      />
+                      <p className="text-xs text-gray-400 mt-1 font-medium truncate group-hover:text-teal-600 transition">
                         {selectedTo?.airport || "Search Airport"}
                       </p>
                     </div>
@@ -598,25 +550,23 @@ const CommonFlightHotelSearchBox = ({
                     />
 
                     {/* Departure */}
-                    <div className="p-4 border-t md:border-t-0 md:border-l border-gray-200 cursor-pointer hover:bg-gray-50 transition">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs text-gray-500 uppercase tracking-wide">
+                    <div className="p-4 border-t md:border-t-0 md:border-l border-gray-100 cursor-pointer hover:bg-teal-50/15 group transition duration-300 flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="text-[10px] font-bold text-teal-700 uppercase tracking-widest">
                           Departure
                         </p>
-                        <ChevronDown className="w-4 h-4 text-[#2276E3]" />
+                        <ChevronDown className="w-3.5 h-3.5 text-teal-600 transition-transform group-hover:translate-y-0.5" />
                       </div>
-                      {/* <p className="text-2xl font-bold text-gray-900">2 Jul 26</p>
-                     <p className="text-sm text-gray-600">Monday</p> */}
 
                       <DatePicker
                         selected={startDate}
                         onChange={(date) => setStartDate(date)}
                         dateFormat="d MMM''yy"
                         wrapperClassName="w-full"
-                        className="w-full text-2xl font-bold text-gray-900 outline-none bg-transparent"
+                        className="w-full text-lg font-extrabold text-gray-900 outline-none bg-transparent cursor-pointer focus:text-teal-700 transition"
                       />
 
-                      <p className="text-sm text-gray-600">
+                      <p className="text-xs text-gray-400 mt-1 font-medium truncate group-hover:text-teal-600 transition">
                         {startDate
                           ? startDate.toLocaleDateString("en-US", {
                               weekday: "long",
@@ -626,22 +576,22 @@ const CommonFlightHotelSearchBox = ({
                     </div>
 
                     {/* Return */}
-                    <div className="p-4 border-t md:border-t-0 md:border-l border-gray-200 cursor-pointer hover:bg-gray-50 transition">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-xs text-gray-500 uppercase tracking-wide">
+                    <div className="p-4 border-t md:border-t-0 md:border-l border-gray-100 cursor-pointer hover:bg-teal-50/15 group transition duration-300 flex flex-col justify-between">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="text-[10px] font-bold text-teal-700 uppercase tracking-widest">
                           Return
                         </p>
-                        <ChevronDown className="w-4 h-4 text-[#2276E3]" />
+                        <ChevronDown className="w-3.5 h-3.5 text-teal-600 transition-transform group-hover:translate-y-0.5" />
                       </div>
                       <DatePicker
                         selected={endDate}
                         onChange={(date) => setEndDate(date)}
                         dateFormat="d MMM''yy"
                         wrapperClassName="w-full"
-                        className="w-full text-2xl font-bold text-gray-900 outline-none bg-transparent"
+                        className="w-full text-lg font-extrabold text-gray-900 outline-none bg-transparent cursor-pointer focus:text-teal-700 transition"
                       />
 
-                      <p className="text-sm text-gray-600">
+                      <p className="text-xs text-gray-400 mt-1 font-medium truncate group-hover:text-teal-600 transition">
                         {endDate
                           ? endDate.toLocaleDateString("en-US", {
                               weekday: "long",
@@ -658,82 +608,85 @@ const CommonFlightHotelSearchBox = ({
                       selectedClass={selectedClass}
                     />
                   </div>
+
                   {/* Swap Button */}
                   <button
                     onClick={handleSwapLocations}
+                    title="Swap Departure & Arrival"
                     className="
-                  hidden 
-                  lg:flex
-                  absolute
-                  left-[20%]
-                  top-1/2
-                  -translate-x-1/2
-                  -translate-y-1/2
-                  w-10
-                  h-10
-                  rounded-full
-                  bg-green-800    
-                  items-center
-                  justify-center
-                  shadow-lg
-                  border-4
-                  border-white
-                  z-20
-                  cursor-pointer
-                "
+                      hidden 
+                      lg:flex
+                      absolute
+                      left-[20%]
+                      top-1/2
+                      -translate-x-1/2
+                      -translate-y-1/2
+                      w-10
+                      h-10
+                      rounded-full
+                      bg-white
+                      border
+                      border-gray-100
+                      text-teal-700
+                      hover:bg-teal-600
+                      hover:text-white
+                      items-center
+                      justify-center
+                      shadow-md
+                      z-30
+                      cursor-pointer
+                      transition-all
+                      duration-500
+                      hover:rotate-180
+                      active:scale-95
+                    "
                   >
                     <div className="flex flex-col -space-y-1">
-                      <ArrowLeft
-                        size={14}
-                        strokeWidth={3}
-                        className="text-white"
-                      />
-                      <ArrowRight
-                        size={14}
-                        strokeWidth={3}
-                        className="text-white"
-                      />
+                      <ArrowLeft size={14} strokeWidth={2.5} />
+                      <ArrowRight size={14} strokeWidth={2.5} />
                     </div>
                   </button>
                 </div>
 
                 {/*Select Fare Type*/}
+                <div className="mb-4">
+                  <SelectFareType
+                    fareTypes={fareTypes}
+                    selectedFare={selectedFare}
+                    setSelectedFare={setSelectedFare}
+                  />
+                </div>
 
-                <SelectFareType
-                  fareTypes={fareTypes}
-                  selectedFare={selectedFare}
-                  setSelectedFare={setSelectedFare}
-                />
-
-                <div className="flex justify-center items-center relative">
+                {/* Search Button centered floating at the bottom */}
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 z-40">
                   <button
-                    onClick={() =>
+                    onClick={() => {
+                      handleFlightSearch();
                       navigate("/flight-list", {
                         state: {
                           flights: [
                             {
-                              flightName: "Flight11",
+                              searchFlights: searchFlights,
                               showNavbar: showNavbar,
                             },
                           ],
                         },
-                      })
-                    }
-                    className="absolute top-1 bg-gradient-to-r from-green-800 to-green-600
-                      hover:from-green-800 to-green-600
-                      text-white font-bold uppercase
-                      px-8 py-3
-                      rounded-md
-                      shadow-md
-                      transition-all duration-300
-                      cursor-pointer"
+                      });
+                    }}
+                    className="bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-bold text-sm uppercase tracking-wider px-10 py-3.5 rounded-full shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-300 cursor-pointer whitespace-nowrap"
                   >
                     Search {searchbox}
                   </button>
                 </div>
               </div>
             )}
-            {searchbox === "HOTEL" && <HotelSearch searchbox={searchbox} />}
+
+            {searchbox === "HOTEL" && (
+              <HotelSearch
+                searchbox={searchbox}
+                handleFlightSearch={handleFlightSearch}
+              />
+            )}
           </div>
         </div>
       )}

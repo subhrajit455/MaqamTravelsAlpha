@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState,useEffect } from "react";
 import {
   ChevronDown,
   Contact,
@@ -16,13 +16,31 @@ const ArrivalPlace = ({
   setSelectedTo,
   setToSuggestions,
   setShowToSuggestions,
+  setIsDisabled
 }) => {
   const handleSelectTo = (suggestion) => {
-    setToQuery(formatSuggestion(suggestion));
-    setSelectedTo(suggestion);
-    setToSuggestions([]);
-    setShowToSuggestions(false);
-  };
+  setToQuery(formatSuggestion(suggestion));
+  setSelectedTo(suggestion);
+  setToSuggestions([]);
+  setShowToSuggestions(false);
+
+  localStorage.setItem(
+    "selectedTo",
+    JSON.stringify(suggestion)
+  );
+};
+
+useEffect(() => {
+  // const savedFrom = JSON.parse(localStorage.getItem("selectedFrom"));
+  const savedTo = JSON.parse(localStorage.getItem("selectedTo"));
+
+ 
+
+  if (savedTo) {
+    setSelectedTo(savedTo);
+    setToQuery(formatSuggestion(savedTo));
+  }
+}, []);
 
   return (
     <>

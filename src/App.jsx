@@ -16,6 +16,7 @@ import Contact from "./pages/Contact";
 import BookingHelp from "./pages/BookingHelp";
 import Resetpassword from "./pages/Resetpassword";
 import FlightCard from "./components/FlightList";
+import FareQuoteDetails from "./pages/FareQuoteDetails";
 import CommonFlightHotelSearchBox from "./components/commonflighthotelsearchbox/CommonFlightHotelSearchBox";
 
 const App = () => {
@@ -34,6 +35,7 @@ const App = () => {
         <Route path="/profile" element={<Profile />} />
         <Route path="/hotel" element={<Hotel />} />
         <Route path="/flight" element={<Flight />} />
+        <Route path="/fare-quote-details" element={<FareQuoteDetails />} />
         <Route path="/common-flighthotel-searchbox"element={<CommonFlightHotelSearchBox />}/>
         <Route path="/flight-list" element={<FlightCard />} />
         <Route path="/terms" element={<TermsAndConditions />} />
