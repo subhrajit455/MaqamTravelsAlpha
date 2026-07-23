@@ -39,6 +39,48 @@ const stringifyDescription = (value) => {
   return '';
 };
 
+const extractHotelDescription = (infoResult = {}, hotelDetails = {}, rawHotel = {}) => {
+  const candidates = [
+    hotelDetails.Description,
+    hotelDetails.HotelDescription,
+    infoResult.Description,
+    infoResult.HotelDescription,
+    hotelDetails.Overview,
+    hotelDetails.HotelOverview,
+    hotelDetails.Summary,
+    hotelDetails.HotelSummary,
+    hotelDetails.About,
+    hotelDetails.DescriptionText,
+    hotelDetails.Details,
+    hotelDetails.HotelDetailsDescription,
+    hotelDetails.Description1,
+    rawHotel.Description,
+    rawHotel.HotelDescription,
+    rawHotel.Overview,
+    rawHotel.Summary,
+    rawHotel.About,
+  ];
+
+  for (const candidate of candidates) {
+    const value = stringifyDescription(candidate);
+    if (value) return value;
+  }
+
+  const facilities = stringifyDescription(hotelDetails.HotelFacilities || hotelDetails.Facilities || hotelDetails.Amenities || rawHotel.HotelFacilities || rawHotel.Facilities);
+  if (facilities) {
+    return `Facilities: ${facilities}`;
+  }
+
+  const basic = stringifyDescription([
+    hotelDetails.Address,
+    hotelDetails.City,
+    hotelDetails.CountryName,
+    hotelDetails.HotelName,
+    hotelDetails.HotelURL,
+  ]);
+  return basic || '';
+};
+
 module.exports = {
   /**
    * Search hotels based on destination, dates, rooms and guests
@@ -96,14 +138,15 @@ module.exports = {
         throw new AppError(`SRDV Hotel API error: ${infoResult.Error.ErrorMessage || JSON.stringify(infoResult.Error)}`, 502);
       }
       if (infoResult) {
-        const rawDescription = infoResult.HotelDetails?.Description || infoResult.HotelDetails?.HotelDescription || infoResult.Description || infoResult.HotelDescription;
-        info.description = stringifyDescription(rawDescription) || info.description;
+        const rawHotel = cachedHotel.raw || {};
+        const hotelDetails = infoResult.HotelDetails || {};
+        info.description = extractHotelDescription(infoResult, hotelDetails, rawHotel) || info.description;
 
         info.address =
           infoResult.Address ||
-          infoResult.HotelDetails?.Address ||
-          infoResult.HotelDetails?.AddressLine1 ||
-          [infoResult.HotelDetails?.City, infoResult.HotelDetails?.CountryName].filter(Boolean).join(', ') ||
+          hotelDetails.Address ||
+          hotelDetails.AddressLine1 ||
+          [hotelDetails.City, hotelDetails.CountryName].filter(Boolean).join(', ') ||
           info.address;
 
         info.images =
@@ -140,7 +183,7 @@ module.exports = {
 
       const rawHotel = cachedHotel.raw || {};
       const hotelDetails = infoResult?.HotelDetails || {};
-      const descriptionFallback = rawHotel.Description || rawHotel.HotelDescription || hotelDetails.Description || hotelDetails.HotelDescription;
+      const descriptionFallback = extractHotelDescription(infoResult, hotelDetails, rawHotel);
 
       return {
         id: cachedHotel.HotelCode || cachedHotel.id,
