@@ -1,64 +1,53 @@
 const mongoose = require('mongoose');
+const { HOTEL_BOOKING_STATUS } = require('./hotel.constants');
 
-/**
- * ─── HOTEL MODEL (Hotel Booking Schema) ────────────────
- * Stores booking references only, not hotel inventory
- * Inventory comes from SRDV API
- */
+const hotelBookingSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  provider: { type: String, required: true, default: 'srdv' },
+  status: { type: String, enum: Object.values(HOTEL_BOOKING_STATUS), default: HOTEL_BOOKING_STATUS.AWAITING_PAYMENT, index: true },
+  searchId: { type: String, required: true, index: true },
+  recheckId: { type: String, required: true, unique: true },
+  traceId: String,
+  srdvType: mongoose.Schema.Types.Mixed,
+  srdvIndex: mongoose.Schema.Types.Mixed,
+  resultIndex: mongoose.Schema.Types.Mixed,
+  srdvHotelId: { type: String, required: true, index: true },
+  hotelName: { type: String, required: true },
+  destination: String,
+  checkIn: { type: Date, required: true },
+  checkOut: { type: Date, required: true },
+  hotelSnapshot: { type: mongoose.Schema.Types.Mixed, required: true },
+  roomSnapshots: { type: [mongoose.Schema.Types.Mixed], required: true },
+  guests: { type: [mongoose.Schema.Types.Mixed], required: true },
+  priceSnapshot: { type: mongoose.Schema.Types.Mixed, required: true },
+  cancellationPolicySnapshot: { type: mongoose.Schema.Types.Mixed, required: true },
+  totalPrice: { type: Number, required: true, min: 0 },
+  currency: { type: String, required: true },
 
-const hotelBookingSchema = new mongoose.Schema(
-  {
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true,
-    },
-    // SRDV hotel ID (external reference)
-    srdvHotelId: {
-      type: String,
-      required: true,
-    },
-    // Hotel details snapshot at booking time
-    hotelName: String,
-    destination: String,
-    checkIn: Date,
-    checkOut: Date,
-    roomType: String,
-    pricePerNight: Number,
-    totalNights: Number,
-    totalPrice: Number,
-    currency: String,
-    // Booking status
-    status: {
-      type: String,
-      enum: ['pending', 'confirmed', 'cancelled', 'completed'],
-      default: 'pending',
-    },
-    // Booking reference from SRDV
-    srdvBookingRef: String,
-    // Guest details
-    guestName: String,
-    guestEmail: String,
-    guestPhone: String,
-    // Special requests
-    specialRequests: String,
-    // Cancellation policy
-    cancellationPolicy: String,
-    // Payment info (linked to Payment module)
-    paymentId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Payment',
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
+  // Financial minor-units breakdown
+  supplierAmountMinor: { type: Number, required: true, default: 0 },
+  customerTotalMinor: { type: Number, required: true, default: 0 },
+  markupMinor: { type: Number, required: true, default: 0 },
+  feeMinor: { type: Number, required: true, default: 0 },
+  pricingVersion: { type: String, default: 'none' },
 
-// Indexes
-hotelBookingSchema.index({ userId: 1 });
-hotelBookingSchema.index({ srdvHotelId: 1 });
-hotelBookingSchema.index({ checkIn: 1 });
-hotelBookingSchema.index({ status: 1 });
+  paymentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Payment' },
+  providerBookingId: { type: String, index: true },
+  bookingRefNo: String,
+  confirmationNo: String,
+  invoiceNumber: String,
+  voucherStatus: Boolean,
+  providerRawResponse: mongoose.Schema.Types.Mixed,
+  failureReason: String,
+  cancellationReference: String,
 
-module.exports = mongoose.model('HotelBooking', hotelBookingSchema);
+  // Async workers controls
+  nextActionAt: { type: Date, index: true },
+  outboxPublished: { type: Boolean, default: false, index: true },
+}, { timestamps: true, strict: 'throw' });
+
+hotelBookingSchema.index({ userId: 1, createdAt: -1 });
+hotelBookingSchema.index({ status: 1, updatedAt: 1 });
+hotelBookingSchema.index({ nextActionAt: 1, status: 1 });
+
+module.exports = mongoose.models.HotelBooking || mongoose.model('HotelBooking', hotelBookingSchema);

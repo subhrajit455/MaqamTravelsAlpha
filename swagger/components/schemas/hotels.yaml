@@ -1,0 +1,431 @@
+components:
+  schemas:
+    HotelSearchRequest:
+      type: object
+      required:
+        - cityId
+        - countryCode
+        - checkIn
+        - checkOut
+        - guestNationality
+        - rooms
+      properties:
+        cityId:
+          type: string
+          example: "725862"
+          description: "SRDV city identifier."
+        countryCode:
+          type: string
+          minLength: 2
+          maxLength: 2
+          example: "IN"
+        checkIn:
+          type: string
+          format: date
+          example: "2026-08-01"
+        checkOut:
+          type: string
+          format: date
+          example: "2026-08-03"
+        guestNationality:
+          type: string
+          minLength: 2
+          maxLength: 2
+          example: "IN"
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          example: "INR"
+        rooms:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required:
+              - adults
+            properties:
+              adults:
+                type: integer
+                minimum: 1
+                maximum: 8
+                example: 2
+              children:
+                type: integer
+                minimum: 0
+                maximum: 6
+                example: 0
+              childAges:
+                type: array
+                items:
+                  type: integer
+                  minimum: 0
+                  maximum: 17
+                example: []
+        minRating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 3
+        maxRating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+
+    HotelSearchResponse:
+      type: object
+      required:
+        - searchId
+        - expiresInSeconds
+        - hotels
+      properties:
+        searchId:
+          type: string
+          format: uuid
+          example: "c4a5cbda-1758-4fb3-8646-d93dfa020825"
+        expiresInSeconds:
+          type: integer
+          example: 900
+        hotels:
+          type: array
+          items:
+            $ref: "#/components/schemas/HotelCard"
+
+    HotelCard:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "hsid4255550579-39676307"
+        name:
+          type: string
+          example: "Hotel C Park Inn"
+        rating:
+          type: integer
+          example: 0
+        address:
+          type: string
+          example: "1042/15, Abdul Rahman Road, Naiwalan"
+        amenities:
+          type: array
+          items:
+            type: string
+          example: []
+        imageUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+          example:
+            - "https://i.travelapi.com/lodging/3000000/2660000/2658500/2658482/54e2e5ec_z.jpg"
+        fromPrice:
+          type: object
+          properties:
+            amountMinor:
+              type: integer
+              example: 884505
+              description: "Final selling price in minor units. Visible to all users."
+            supplierAmountMinor:
+              type: integer
+              example: 803896
+              description: "Raw SRDV supplier amount in minor units. Admin-only field."
+            markupMinor:
+              type: integer
+              example: 64312
+              description: "Markup amount in minor units. Admin-only field."
+            feeMinor:
+              type: integer
+              example: 20000
+              description: "Convenience fee in minor units. Admin-only field."
+            customerTotalMinor:
+              type: integer
+              example: 888208
+              description: "Customer total in minor units. Matches amountMinor. Admin-only field."
+            currency:
+              type: string
+              example: "INR"
+            pricingVersion:
+              type: string
+              example: "env-p8-f200-v1"
+              description: "Pricing rule version metadata. Admin-only field."
+        priceDisclosure:
+          type: object
+          properties:
+            includesTaxes:
+              type: boolean
+              example: true
+            includesFees:
+              type: boolean
+              example: true
+
+    HotelDetailsResponse:
+      type: object
+      required:
+        - id
+        - name
+        - rooms
+      properties:
+        id:
+          type: string
+          example: "hsid8789387822-39676307"
+        name:
+          type: string
+          example: "Hotel C Park Inn"
+        rating:
+          type: integer
+          example: 0
+        address:
+          type: string
+          example: ""
+        description:
+          type: string
+          example: ""
+        imageUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+        currency:
+          type: string
+          example: "INR"
+        rooms:
+          type: array
+          items:
+            $ref: "#/components/schemas/HotelRoom"
+
+    HotelRoom:
+      type: object
+      required:
+        - id
+        - name
+        - price
+        - totalPrice
+        - currency
+      properties:
+        id:
+          type: string
+          example: "8205fc1b-de0d-473c-aeed-d1d5ae7ebe11srlktsrlkthsid8789387822srlktsrlkt48cab9778a5c0c30ff1722ddb6f53e63"
+        name:
+          type: string
+          example: "Deluxe Room"
+        board:
+          type: string
+          example: "No meals included"
+        capacity:
+          type: integer
+          example: 2
+        price:
+          type: number
+          format: float
+          example: 4522.53
+        totalPrice:
+          type: number
+          format: float
+          example: 4522.53
+        currency:
+          type: string
+          example: "INR"
+        refundable:
+          type: boolean
+          example: false
+        cancellationPolicy:
+          type: string
+          example: "Standard cancellation policy applies."
+        srdvRoomDetails:
+          type: object
+          description: "Raw SRDV room details preserved for later recheck and booking."
+        priceSnapshot:
+          type: object
+          description: "Admin-only price breakdown visible only when an admin Bearer token is provided."
+          properties:
+            supplierAmountMinor:
+              type: integer
+              example: 400234
+            markupMinor:
+              type: integer
+              example: 32019
+            feeMinor:
+              type: integer
+              example: 20000
+            customerTotalMinor:
+              type: integer
+              example: 452253
+            currency:
+              type: string
+              example: "INR"
+            pricingVersion:
+              type: string
+              example: "env-p8-f200-v1"
+
+    HotelRecheckRequest:
+      type: object
+      required:
+        - searchId
+        - hotelId
+        - selectedRooms
+      properties:
+        searchId:
+          type: string
+          format: uuid
+          example: "c4a5cbda-1758-4fb3-8646-d93dfa020825"
+        hotelId:
+          type: string
+          example: "hsid4255550579-39676307"
+        selectedRooms:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required:
+              - roomId
+            properties:
+              roomId:
+                type: string
+                example: "8205fc1b-de0d-473c-aeed-d1d5ae7ebe11srlktsrlkthsid8789387822srlktsrlkt48cab9778a5c0c30ff1722ddb6f53e63"
+              quantity:
+                type: integer
+                example: 1
+
+    HotelRecheckResponse:
+      type: object
+      properties:
+        recheckId:
+          type: string
+          format: uuid
+          example: "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy"
+        expiresInSeconds:
+          type: integer
+          example: 600
+        priceChanged:
+          type: boolean
+          example: false
+        policyChanged:
+          type: boolean
+          example: false
+        hotel:
+          $ref: "#/components/schemas/HotelCard"
+        roomSnapshots:
+          type: array
+          items:
+            $ref: "#/components/schemas/HotelRoom"
+        price:
+          type: object
+          properties:
+            currency:
+              type: string
+              example: "INR"
+            total:
+              type: number
+              example: 4522.53
+        cancellationPolicy:
+          type: array
+          items:
+            type: string
+
+    HotelBookingCreateRequest:
+      type: object
+      required:
+        - recheckId
+        - guests
+      properties:
+        recheckId:
+          type: string
+          format: uuid
+          example: "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy"
+        acceptChanges:
+          type: boolean
+          example: true
+        guests:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required:
+              - title
+              - firstName
+              - lastName
+              - type
+            properties:
+              title:
+                type: string
+                example: "Mr"
+              firstName:
+                type: string
+                example: "MD Rana"
+              lastName:
+                type: string
+                example: "HASAN"
+              type:
+                type: string
+                enum: [adult, child]
+                example: "adult"
+              email:
+                type: string
+                format: email
+                example: "example@gmail.com"
+              phone:
+                type: string
+                example: "1234567899"
+
+    HotelBookingResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "64d7e3a8f1d2f2b4c7a8b123"
+        status:
+          type: string
+          example: "PAYMENT_PENDING"
+        providerBookingId:
+          type: string
+          nullable: true
+          example: null
+        bookingRefNo:
+          type: string
+          nullable: true
+          example: null
+        paymentStatus:
+          type: string
+          example: "PENDING"
+        amountMinor:
+          type: integer
+          example: 452253
+        currency:
+          type: string
+          example: "INR"
+        expiresInSeconds:
+          type: integer
+          example: 900
+
+    HotelBookingSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "64d7e3a8f1d2f2b4c7a8b123"
+        hotelName:
+          type: string
+          example: "Hotel C Park Inn"
+        status:
+          type: string
+          example: "PAYMENT_PENDING"
+        totalAmountMinor:
+          type: integer
+          example: 452253
+        currency:
+          type: string
+          example: "INR"
+
+    HotelCancelResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "cancelled"
+        cancellationReference:
+          type: string
+          example: "CR123456789"
+        penalty:
+          type: number
+          example: 3955.14

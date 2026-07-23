@@ -28,13 +28,13 @@ const verifyAccessToken = (token) => {
   }
 };
 
-const generateRefreshAccessToken =  (refreshToken) => {
+const generateRefreshAccessToken = (refreshToken) => {
   try {
-    const decoded =  jwt.verify(refreshToken, REFRESH_TOKEN_SECRET);
-    console.log("decoded:\n",decoded)
+    const decoded = jwt.verify(refreshToken, REFRESH_TOKEN_SECRET);
+    console.log("decoded:\n", decoded)
     const newAccessToken = jwt.sign({ id: decoded.id, role: decoded.role }, ACCESS_TOKEN_SECRET, { expiresIn: '60m' });
-    console.log('Access token:\n',newAccessToken)
-    return { accessToken: newAccessToken};
+    console.log('Access token:\n', newAccessToken)
+    return { accessToken: newAccessToken };
 
   } catch (error) {
     throw new AppError('Invalid or expired refresh token', 401);
@@ -63,6 +63,21 @@ const authenticate = async (req, res, next) => {
   }
 };
 
+const tryAuthenticate = async (req) => {
+  try {
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+    const token = authHeader.split(' ')[1].trim();
+    const payload = verifyAccessToken(token);
+    const user = await User.findById(payload.id).select('-password -resetPasswordToken -resetPasswordExpires');
+    return user || null;
+  } catch (error) {
+    return null;
+  }
+};
+
 const authorize = (...roles) => {
   return (req, res, next) => {
     const user = req.user;
@@ -79,5 +94,6 @@ module.exports = {
   generateRefreshAccessToken,
   authenticate,
   authorize,
+  tryAuthenticate,
 };
 

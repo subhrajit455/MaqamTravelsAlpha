@@ -121,6 +121,18 @@ const ensureBookingConfirmed = async (payment, session = null) => {
     const booking = await resolveBooking(payment.bookingId, payment.bookingType);
     if (!booking) return null;
 
+    // A hotel payment authorizes supplier confirmation; it is not confirmation itself.
+    // The supplier may return confirmed, pending, or failed after payment is received.
+    if (payment.bookingType === 'hotel') {
+        const { confirmBookingAfterPayment } = require('../hotels/hotel-booking.service');
+        const hotelBooking = await confirmBookingAfterPayment({ bookingId: booking._id, payment });
+        if (hotelBooking.status !== 'confirmed') {
+            return { booking: hotelBooking, masterBooking: null };
+        }
+        const masterBooking = await createOrUpdateMasterBooking(payment, hotelBooking, session);
+        return { booking: hotelBooking, masterBooking };
+    }
+
     const status = getBookingConfirmationStatus(payment.bookingType);
     let bookingUpdated = false;
 
