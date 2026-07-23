@@ -18,6 +18,27 @@ const nightsBetween = (checkIn, checkOut) => {
   return Math.round((end - start) / (1000 * 60 * 60 * 24));
 };
 
+// Reusable description parser for SRDV responses (handles strings, arrays, and object nodes)
+const stringifyDescription = (value) => {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value).trim();
+  }
+  if (Array.isArray(value)) {
+    return value.map(stringifyDescription).filter(Boolean).join(' ');
+  }
+  if (typeof value === 'object') {
+    const preferredText = [value.Name, value.Title, value.Heading, value.Label].filter(Boolean).join(' ');
+    const detailText = stringifyDescription(
+      value.Detail || value.Details || value.Description || value.HotelDescription || value.Text || value.Content || value.Value,
+    );
+    const combined = [preferredText, detailText].filter(Boolean).join(': ');
+    if (combined) return combined;
+    return Object.values(value).map(stringifyDescription).filter(Boolean).join(' ');
+  }
+  return '';
+};
+
 module.exports = {
   /**
    * Search hotels based on destination, dates, rooms and guests
@@ -56,7 +77,7 @@ module.exports = {
     try {
       const { cachedHotel, searchSession, correlationId } = params;
       const nights = nightsBetween(searchSession.criteria.checkIn, searchSession.criteria.checkOut);
-      
+
 
       // Fetch hotel info first, as SRDV requires hotel details before room details.
       let info = { description: '', images: [], address: cachedHotel.HotelAddress || cachedHotel.address || '' };
@@ -75,8 +96,31 @@ module.exports = {
         throw new AppError(`SRDV Hotel API error: ${infoResult.Error.ErrorMessage || JSON.stringify(infoResult.Error)}`, 502);
       }
       if (infoResult) {
-        info.description = infoResult.Description || infoResult.HotelDetails?.Description || '';
-        info.images = infoResult.Images || infoResult.HotelDetails?.Images || info.images;
+        const rawDescription = infoResult.HotelDetails?.Description || infoResult.HotelDetails?.HotelDescription || infoResult.Description || infoResult.HotelDescription;
+        info.description = stringifyDescription(rawDescription) || info.description;
+
+        info.address =
+          infoResult.Address ||
+          infoResult.HotelDetails?.Address ||
+          infoResult.HotelDetails?.AddressLine1 ||
+          [infoResult.HotelDetails?.City, infoResult.HotelDetails?.CountryName].filter(Boolean).join(', ') ||
+          info.address;
+
+        info.images =
+          infoResult.Images ||
+          infoResult.HotelDetails?.Images ||
+          (infoResult.HotelDetails?.HotelPicture ? ([]).concat(infoResult.HotelDetails.HotelPicture) : []) ||
+          info.images;
+
+        // Debug log when key fields are still missing to aid diagnosis in production
+        if (!info.description || !info.address || !info.images.length) {
+          logger.info(`[SRDV Provider] hotelInfo partial/missing fields for HotelCode=${infoPayload.HotelCode} trace=${infoPayload.TraceId} — descriptionPresent=${!!info.description} addressPresent=${!!info.address} images=${info.images.length}`);
+          try {
+            logger.debug(`[SRDV Provider] rawInfo snippet: ${JSON.stringify({ HotelDetails: infoResult.HotelDetails || null, Address: infoResult.Address || null, Images: infoResult.Images || null }, null, 2)}`);
+          } catch (e) {
+            logger.debug('[SRDV Provider] rawInfo snippet unavailable for logging');
+          }
+        }
       }
 
       // Fetch rates & rooms after hotel info succeeds.
@@ -84,12 +128,34 @@ module.exports = {
       const rawRooms = await client.hotelRoom(roomPayload, correlationId);
       const normalizedRooms = mapper.mapHotelRoomResponse(rawRooms, nights);
 
+      // If no rooms were mapped, log the raw response to help debug missing room data
+      if (!normalizedRooms.rooms || normalizedRooms.rooms.length === 0) {
+        logger.info(`[SRDV Provider] No rooms returned for HotelCode=${infoPayload.HotelCode} (searchId=${searchSession?.criteria?.searchId || 'n/a'})`);
+        try {
+          logger.debug(`[SRDV Provider] rawRooms for HotelCode=${infoPayload.HotelCode}: ${JSON.stringify(rawRooms)}`);
+        } catch (e) {
+          logger.debug('[SRDV Provider] rawRooms unavailable for logging');
+        }
+      }
+
+      const rawHotel = cachedHotel.raw || {};
+      const hotelDetails = infoResult?.HotelDetails || {};
+      const descriptionFallback = rawHotel.Description || rawHotel.HotelDescription || hotelDetails.Description || hotelDetails.HotelDescription;
+
       return {
         id: cachedHotel.HotelCode || cachedHotel.id,
         name: cachedHotel.HotelName || cachedHotel.name,
-        rating: Number(cachedHotel.Rating || cachedHotel.rating || 0),
-        address: info.address,
-        description: info.description,
+        rating: Number(
+          infoResult?.HotelRating ||
+          infoResult?.Rating ||
+          hotelDetails.StarRating ||
+          hotelDetails.Rating ||
+          cachedHotel.Rating ||
+          cachedHotel.rating ||
+          0
+        ),
+        address: info.address || rawHotel.Address || rawHotel.HotelAddress || rawHotel.address || cachedHotel.Address || cachedHotel.HotelAddress || cachedHotel.address || '',
+        description: info.description || stringifyDescription(descriptionFallback) || '',
         imageUrls: info.images.length ? info.images : (cachedHotel.imageUrls || []),
         currency: cachedHotel.currency || 'INR',
         rooms: normalizedRooms.rooms,
@@ -119,12 +185,49 @@ module.exports = {
       const payload = mapper.mapBlockRoomRequest(cachedRoomDetails, cachedHotel, searchSession);
       const rawResult = await client.blockRoom(payload, correlationId);
 
+      // Enrich hotelCard with latest supplier info (hotel description/address/rating/images)
       const hotelCard = {
         id: cachedHotel.HotelCode || cachedHotel.id,
         name: cachedHotel.HotelName || cachedHotel.name,
         rating: Number(cachedHotel.Rating || cachedHotel.rating || 0),
         address: cachedHotel.HotelAddress || cachedHotel.address || '',
       };
+
+      try {
+        const infoPayload = {
+          SrdvType: searchSession.srdvType,
+          SrdvIndex: cachedHotel.SrdvIndex || cachedHotel.srdvIndex || 1,
+          TraceId: searchSession.traceId,
+          ResultIndex: cachedHotel.ResultIndex || cachedHotel.resultIndex,
+          HotelCode: cachedHotel.HotelCode || cachedHotel.hotelCode || cachedHotel.id,
+        };
+        const rawInfo = await client.hotelInfo(infoPayload, correlationId);
+        const infoResult = rawInfo.GetHotelInfoResult || rawInfo.HotelInfoResult || rawInfo;
+        if (infoResult && !(infoResult?.Error && infoResult.Error.ErrorCode !== 0)) {
+          const hotelDetails = infoResult.HotelDetails || {};
+          const rawDescription = hotelDetails.Description || hotelDetails.HotelDescription || infoResult.Description || infoResult.HotelDescription;
+          const description = stringifyDescription(rawDescription);
+          const address = infoResult.Address || hotelDetails.Address || hotelDetails.AddressLine1 || [hotelDetails.City, hotelDetails.CountryName].filter(Boolean).join(', ');
+          const images = infoResult.Images || hotelDetails.Images || (hotelDetails.HotelPicture ? ([]).concat(hotelDetails.HotelPicture) : []);
+          const rating = Number(infoResult.HotelRating || infoResult.Rating || hotelDetails.StarRating || hotelDetails.Rating || hotelCard.rating || 0);
+
+          hotelCard.description = description || hotelCard.description;
+          hotelCard.address = address || hotelCard.address;
+          hotelCard.imageUrls = images.length ? images : (cachedHotel.imageUrls || []);
+          hotelCard.rating = rating;
+
+          // attempt to set a fromPrice if available in cached raw hotel
+          const rawHotel = cachedHotel.raw || {};
+          const minPriceMajor = parseFloat(
+            rawHotel.MinPrice?.OfferedPrice || rawHotel.Price?.OfferedPrice || rawHotel.OfferedPrice || rawHotel.MinPrice || rawHotel.Price || 0,
+          ) || 0;
+          if (minPriceMajor > 0) {
+            hotelCard.fromPrice = { amountMinor: Math.round(minPriceMajor * 100), currency: rawHotel.CurrencyCode || cachedHotel.currency || 'INR' };
+          }
+        }
+      } catch (e) {
+        logger.info(`[SRDV Provider] hotelInfo enrichment failed during blockRoom for ${cachedHotel?.HotelCode || cachedHotel?.id}: ${e.message}`);
+      }
 
       const normalized = mapper.mapBlockRoomResponse(rawResult, hotelCard, nights);
       return normalized;

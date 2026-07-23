@@ -37,11 +37,14 @@ const searchHotels = async (criteria) => {
       ResultIndex: h.ResultIndex || h.resultIndex,
       SrdvIndex: h.SrdvIndex || h.srdvIndex || 1,
       HotelName: h.HotelName || h.hotelName || '',
+      Rating: Number(h.Rating || h.HotelRating || h.hotelRating || h.rating || 0),
+      Address: h.Address || h.HotelAddress || h.address || '',
       hotelCode: String(h.HotelCode || h.hotelCode || ''),
       resultIndex: h.ResultIndex || h.resultIndex,
       srdvIndex: h.SrdvIndex || h.srdvIndex || 1,
       hotelName: h.HotelName || h.hotelName || '',
       id: String(h.HotelCode || h.hotelCode || ''),
+      raw: h,
     }))
   };
 
@@ -59,7 +62,12 @@ const searchHotels = async (criteria) => {
       ...h,
       fromPrice: {
         amountMinor: pricing.customerTotalMinor,
+        supplierAmountMinor: pricing.supplierAmountMinor,
+        markupMinor: pricing.markupMinor,
+        feeMinor: pricing.feeMinor,
+        customerTotalMinor: pricing.customerTotalMinor,
         currency: pricing.currency,
+        pricingVersion: pricing.pricingVersion,
       },
     };
   });
@@ -70,7 +78,9 @@ const searchHotels = async (criteria) => {
     expiresInSeconds: SEARCH_CACHE_TTL_MS / 1000,
     hotels: publicHotels,
   };
+
 };
+
 
 
 /**

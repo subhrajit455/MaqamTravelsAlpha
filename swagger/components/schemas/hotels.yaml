@@ -90,7 +90,7 @@ components:
         hotels:
           type: array
           items:
-            $ref: '#/components/schemas/HotelCard'
+            $ref: "#/components/schemas/HotelCard"
 
     HotelCard:
       type: object
@@ -125,9 +125,30 @@ components:
             amountMinor:
               type: integer
               example: 884505
+              description: "Final selling price in minor units. Visible to all users."
+            supplierAmountMinor:
+              type: integer
+              example: 803896
+              description: "Raw SRDV supplier amount in minor units. Admin-only field."
+            markupMinor:
+              type: integer
+              example: 64312
+              description: "Markup amount in minor units. Admin-only field."
+            feeMinor:
+              type: integer
+              example: 20000
+              description: "Convenience fee in minor units. Admin-only field."
+            customerTotalMinor:
+              type: integer
+              example: 888208
+              description: "Customer total in minor units. Matches amountMinor. Admin-only field."
             currency:
               type: string
               example: "INR"
+            pricingVersion:
+              type: string
+              example: "env-p8-f200-v1"
+              description: "Pricing rule version metadata. Admin-only field."
         priceDisclosure:
           type: object
           properties:
@@ -171,7 +192,7 @@ components:
         rooms:
           type: array
           items:
-            $ref: '#/components/schemas/HotelRoom'
+            $ref: "#/components/schemas/HotelRoom"
 
     HotelRoom:
       type: object
@@ -216,6 +237,7 @@ components:
           description: "Raw SRDV room details preserved for later recheck and booking."
         priceSnapshot:
           type: object
+          description: "Admin-only price breakdown visible only when an admin Bearer token is provided."
           properties:
             supplierAmountMinor:
               type: integer
@@ -282,11 +304,11 @@ components:
           type: boolean
           example: false
         hotel:
-          $ref: '#/components/schemas/HotelCard'
+          $ref: "#/components/schemas/HotelCard"
         roomSnapshots:
           type: array
           items:
-            $ref: '#/components/schemas/HotelRoom'
+            $ref: "#/components/schemas/HotelRoom"
         price:
           type: object
           properties:

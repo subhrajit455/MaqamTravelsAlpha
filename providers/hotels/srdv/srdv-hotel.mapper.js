@@ -16,7 +16,8 @@ const nightsBetween = (checkIn, checkOut) => {
 const findHotelArray = (response) => {
   if (!response || typeof response !== 'object') return [];
 
-  const tryArray = (value) => (Array.isArray(value) ? value : null);
+  // const tryArray = (value) => (Array.isArray(value) ? value : null);
+  const tryArray = (value) => (Array.isArray)(value) ? value : null;
   const looksLikeHotelArray = (arr) => {
     if (!Array.isArray(arr) || arr.length === 0 || typeof arr[0] !== 'object') return false;
     const first = arr[0];
@@ -40,7 +41,20 @@ const findHotelArray = (response) => {
     || tryArray(response.SearchResult?.HotelList)
     || tryArray(response.SearchResult?.HotelResult);
 
+
   if (direct) return direct;
+
+  // const recursiveFind = (obj, depth = 0) => {
+  //   if (!obj || typeof obj !== 'object' || depth > 4) return null;
+  //   for (const value of Object.values(obj)) {
+  //     if (looksLikeHotelArray(value)) return value;
+  //     if (value && typeof value === 'object' && !Array.isArray(value)) {
+  //       const found = recursiveFind(value, depth + 1);
+  //       if (found) return found;
+  //     }
+  //   }
+  //   return null;
+  // };
 
   const recursiveFind = (obj, depth = 0) => {
     if (!obj || typeof obj !== 'object' || depth > 4) return null;
@@ -53,9 +67,9 @@ const findHotelArray = (response) => {
     }
     return null;
   };
-
   return recursiveFind(response) || [];
 };
+
 
 module.exports = {
   /**
@@ -147,15 +161,33 @@ module.exports = {
    * Normalizes SRDV HotelRoom response to Maqam room list DTO
    */
   mapHotelRoomResponse: (srdvResponse, nights) => {
-    const hotelRoomsDetails =
+    const hotelRoomsDetails = (
       srdvResponse.GetHotelRoomResult?.HotelRoomsDetails ||
+      srdvResponse.GetHotelRoomResult?.hotelRoomsDetails ||
+      srdvResponse.GetHotelRoomResult ||
       srdvResponse.HotelRoomResult?.HotelRoomsDetails ||
+      srdvResponse.HotelRoomResult?.hotelRoomsDetails ||
+      srdvResponse.HotelRoomResult ||
       srdvResponse.HotelRoomsDetails ||
-      [];
+      srdvResponse.hotelRoomsDetails ||
+      srdvResponse.HotelRoomsDetails ||
+      []
+    );
+    // const hotelRoomsDetails =
+    //   srdvResponse.GetHotelRoomResult?.HotelRoomsDetails ||
+    //   srdvResponse.HotelRoomResult?.HotelRoomsDetails ||
+    //   srdvResponse.HotelRoomsDetails ||
+    //   [];
 
-    const rooms = hotelRoomsDetails.flatMap((category) => {
-      const categoryName = category.CategoryName || category.RoomTypeName || 'Standard Room';
-      const roomsArray = Array.isArray(category.Rooms) ? category.Rooms : [];
+    const rooms = (Array.isArray(hotelRoomsDetails) ? hotelRoomsDetails : [hotelRoomsDetails]).flatMap((category) => {
+      const categoryName = category?.CategoryName || category?.RoomTypeName || category?.Category || 'Standard Room';
+      const roomsArray = Array.isArray(category?.Rooms)
+        ? category.Rooms
+        : Array.isArray(category?.Room)
+          ? category.Room
+          : Array.isArray(category?.RoomList)
+            ? category.RoomList
+            : [];
       return roomsArray.map((room) => {
         const offeredPrice = parseFloat(room.Price?.OfferedPrice || room.OfferedPrice || 0);
         return {
@@ -201,6 +233,7 @@ module.exports = {
   /**
    * Normalizes SRDV BlockRoom response to Maqam block/recheck DTO
    */
+
   mapBlockRoomResponse: (srdvResponse, hotelCard, nights) => {
     const result = srdvResponse.BlockRoomResult || srdvResponse;
     const roomDetails = result.HotelRoomsDetails || [];

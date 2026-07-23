@@ -13,7 +13,7 @@ const idempotency = require('../payments/idempotency.middleware');
  *     tags:
  *       - Hotels
  *     summary: Search hotels
- *     description: Search hotel availability using normalized criteria. Returns an opaque searchId for later detail and recheck calls.
+ *     description: Search hotel availability using normalized criteria. Returns an opaque searchId for later detail and recheck calls. Include an admin Bearer JWT in Swagger to see full supplier and markup pricing fields.
  *     security: []
  *     requestBody:
  *       required: true
@@ -40,6 +40,9 @@ const idempotency = require('../payments/idempotency.middleware');
  */
 router.post('/search', searchLimiter, validator.validateSearch(), validate, controller.searchHotels);
 
+// Developer-only: dump cached search session (non-production only)
+router.get('/debug/search/:searchId', controller.debugSearchSession);
+
 /**
  * @openapi
  * /api/v1/hotels/{hotelId}:
@@ -47,7 +50,7 @@ router.post('/search', searchLimiter, validator.validateSearch(), validate, cont
  *     tags:
  *       - Hotels
  *     summary: Get hotel details and room options
- *     description: Retrieve hotel details and room availability using a previously generated searchId.
+ *     description: Retrieve hotel details and room availability using a previously generated searchId. Include an admin Bearer JWT in Swagger to see full supplier and markup pricing fields.
  *     security: []
  *     parameters:
  *       - name: hotelId
@@ -89,7 +92,7 @@ router.get('/:hotelId', validator.validateHotelId(), validate, controller.getHot
  *     tags:
  *       - Hotels
  *     summary: Recheck room availability and price
- *     description: Revalidate selected rooms and policies before booking. Returns a recheck snapshot for payment and reservation.
+ *     description: Revalidate selected rooms and policies before booking. Returns a recheck snapshot for payment and reservation. Include an admin Bearer JWT in Swagger to see full supplier and markup pricing fields.
  *     security: []
  *     requestBody:
  *       required: true
