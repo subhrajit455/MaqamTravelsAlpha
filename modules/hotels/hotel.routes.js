@@ -3,6 +3,7 @@ const controller = require('./hotel.controller');
 const validator = require('./hotel.validator');
 const validate = require('../../middleware/validate');
 const { searchLimiter } = require('../../middleware/rateLimiter');
+const { query } = require('express-validator');
 const { authenticate } = require('../../middleware/auth');
 const idempotency = require('../payments/idempotency.middleware');
 
@@ -42,6 +43,46 @@ router.post('/search', searchLimiter, validator.validateSearch(), validate, cont
 
 // Developer-only: dump cached search session (non-production only)
 router.get('/debug/search/:searchId', controller.debugSearchSession);
+
+/**
+ * @openapi
+ * /api/v1/hotels/cities:
+ *   get:
+ *     tags:
+ *       - Hotels
+ *     summary: Search/autocomplete hotel destination cities
+ *     description: >
+ *       Returns a list of city suggestions matching the provided query string.
+ *       Use this endpoint to implement a city autocomplete dropdown in the UI.
+ *       Pass the returned `cityId` in the hotel search request instead of a raw numeric ID.
+ *       When `q` is omitted or fewer than 2 characters, the full city list is returned.
+ *     security: []
+ *     parameters:
+ *       - name: q
+ *         in: query
+ *         required: false
+ *         description: Partial city name to search (min 2 characters for filtering)
+ *         schema:
+ *           type: string
+ *           example: "mum"
+ *     responses:
+ *       200:
+ *         description: City suggestions returned successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               allOf:
+ *                 - $ref: '#/components/schemas/SuccessEnvelope'
+ *                 - type: object
+ *                   properties:
+ *                     data:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/HotelCitySuggestion'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/cities', [query('q').optional().trim()], validate, controller.searchHotelCities);
 
 /**
  * @openapi

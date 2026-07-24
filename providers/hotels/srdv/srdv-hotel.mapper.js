@@ -7,6 +7,9 @@
  * Translates between Maqam domain objects and SRDV payload structures.
  */
 
+const { resolveCityId, findCityById } = require('../../../utils/hotelCityMap');
+const { AppError } = require('../../../middleware/errorHandler');
+
 const nightsBetween = (checkIn, checkOut) => {
   const start = new Date(checkIn);
   const end = new Date(checkOut);
@@ -16,8 +19,7 @@ const nightsBetween = (checkIn, checkOut) => {
 const findHotelArray = (response) => {
   if (!response || typeof response !== 'object') return [];
 
-  // const tryArray = (value) => (Array.isArray(value) ? value : null);
-  const tryArray = (value) => (Array.isArray)(value) ? value : null;
+  const tryArray = (value) => (Array.isArray(value) ? value : null);
   const looksLikeHotelArray = (arr) => {
     if (!Array.isArray(arr) || arr.length === 0 || typeof arr[0] !== 'object') return false;
     const first = arr[0];
@@ -29,33 +31,23 @@ const findHotelArray = (response) => {
     );
   };
 
-  const direct = tryArray(response)
-    || tryArray(response.HotelSearchResult?.HotelResults)
-    || tryArray(response.HotelSearchResult?.Hotels)
-    || tryArray(response.HotelSearchResult?.HotelList)
-    || tryArray(response.HotelSearchResult?.HotelResult)
-    || tryArray(response.HotelResults)
-    || tryArray(response.Hotels)
-    || tryArray(response.SearchResult?.HotelResults)
-    || tryArray(response.SearchResult?.Hotels)
-    || tryArray(response.SearchResult?.HotelList)
-    || tryArray(response.SearchResult?.HotelResult);
+  // Try all known SRDV response envelope shapes, including root-level Results[]
+  const direct =
+    tryArray(response.Results) ||
+    tryArray(response.HotelSearchResult?.HotelResults) ||
+    tryArray(response.HotelSearchResult?.Hotels) ||
+    tryArray(response.HotelSearchResult?.HotelList) ||
+    tryArray(response.HotelSearchResult?.HotelResult) ||
+    tryArray(response.HotelResults) ||
+    tryArray(response.Hotels) ||
+    tryArray(response.SearchResult?.HotelResults) ||
+    tryArray(response.SearchResult?.Hotels) ||
+    tryArray(response.SearchResult?.HotelList) ||
+    tryArray(response.SearchResult?.HotelResult);
 
+  if (direct && looksLikeHotelArray(direct)) return direct;
 
-  if (direct) return direct;
-
-  // const recursiveFind = (obj, depth = 0) => {
-  //   if (!obj || typeof obj !== 'object' || depth > 4) return null;
-  //   for (const value of Object.values(obj)) {
-  //     if (looksLikeHotelArray(value)) return value;
-  //     if (value && typeof value === 'object' && !Array.isArray(value)) {
-  //       const found = recursiveFind(value, depth + 1);
-  //       if (found) return found;
-  //     }
-  //   }
-  //   return null;
-  // };
-
+  // Recursive fallback for unknown envelope structures
   const recursiveFind = (obj, depth = 0) => {
     if (!obj || typeof obj !== 'object' || depth > 4) return null;
     for (const value of Object.values(obj)) {
@@ -73,16 +65,37 @@ const findHotelArray = (response) => {
 
 module.exports = {
   /**
-   * Maps Maqam search criteria to SRDV Search payload
+   * Maps Maqam search criteria to SRDV Search payload.
+   * Accepts either criteria.cityId (numeric string) or criteria.cityName (free text).
+   * When only cityName is supplied, it is resolved against the internal city map.
    */
   mapSearchRequest: (criteria) => {
     const nights = nightsBetween(criteria.checkIn, criteria.checkOut);
+
+    // ── City ID resolution ────────────────────────────────────────────────────
+    let resolvedCityId = criteria.cityId;
+
+    if (!resolvedCityId && criteria.cityName) {
+      resolvedCityId = resolveCityId(criteria.cityName);
+      if (!resolvedCityId) {
+        throw new AppError(
+          `City "${criteria.cityName}" was not found in the destination list. ` +
+          'Use GET /api/v1/hotels/cities?q=<name> to search for a valid city name.',
+          400,
+        );
+      }
+    }
+
+    if (!resolvedCityId) {
+      throw new AppError('Either cityId or cityName must be provided.', 400);
+    }
+
     return {
       BookingMode: 5, // Sandbox/Test booking mode
       CheckInDate: new Date(criteria.checkIn).toISOString().split('T')[0],
       NoOfNights: nights,
       CountryCode: criteria.countryCode || 'SA',
-      CityId: Number(criteria.cityId),
+      CityId: Number(resolvedCityId),
       PreferredCurrency: criteria.currency || 'INR',
       GuestNationality: criteria.guestNationality || 'IN',
       NoOfRooms: criteria.rooms.length,
@@ -97,33 +110,109 @@ module.exports = {
   },
 
   /**
-   * Normalizes SRDV Search response to Maqam public hotel DTO
+   * Normalizes SRDV Search response to Maqam public hotel DTO.
+   *
+   * Price fix: amountMinor here is the PER-NIGHT supplier price in minor units
+   * (paise for INR). The nights multiplier is applied later in the use-case
+   * display layer so that markup is calculated on the per-night base first.
    */
   mapSearchResponse: (srdvResponse, criteria) => {
-    const nights = nightsBetween(criteria.checkIn, criteria.checkOut);
     const rawHotels = findHotelArray(srdvResponse);
 
     const hotels = rawHotels.map((hotel) => {
+      // ── Price extraction ────────────────────────────────────────────────────
+      // SRDV sends prices in major units (e.g. 366.18 INR).
+      // We convert to minor units (paise) here WITHOUT multiplying by nights.
+      // The use-case handles nights * markup in the display layer.
       const priceSource = hotel.Price || hotel.MinPrice || {};
-      const minPrice = parseFloat(
+      const supplierPriceMajor = parseFloat(
         priceSource.OfferedPrice ||
+        priceSource.OfferedPriceRoundedOff ||
         priceSource.PublishedPrice ||
+        priceSource.PublishedPriceRoundedOff ||
         priceSource.RoomPrice ||
-        priceSource.Price ||
+        hotel.OfferedFare ||
         hotel.MinPrice ||
         0,
       ) || 0;
-      const currency = hotel.CurrencyCode || priceSource.CurrencyCode || criteria.currency || 'INR';
+
+      // Collect per-room prices from Facilities[] if present (some SRDV variants)
+      const facilitiesPrice = Array.isArray(hotel.Facilities)
+        ? hotel.Facilities.reduce((sum, f) => sum + (parseFloat(f.RoomPrice) || 0), 0)
+        : 0;
+
+      const finalPriceMajor = supplierPriceMajor || facilitiesPrice;
+      const currency = priceSource.CurrencyCode || hotel.CurrencyCode || criteria.currency || 'INR';
+
+      // Convert to minor units (paise) — NO nights multiplication here
+      const supplierAmountMinor = Math.round(finalPriceMajor * 100);
+
+      // ── Star rating ─────────────────────────────────────────────────────────
+      // SRDV uses StarRating (integer 1–5). Rating/HotelRating are fallbacks.
+      const rating = Number(
+        hotel.StarRating ||
+        hotel.HotelStarRating ||
+        hotel.Rating ||
+        hotel.HotelRating ||
+        hotel.HotelCategory?.match(/^(\d)/)?.[1] ||
+        0,
+      );
+
+      // ── Images ──────────────────────────────────────────────────────────────
+      const imageUrls = [];
+      if (hotel.HotelPicture) imageUrls.push(hotel.HotelPicture.replace('_b.jpg', '_z.jpg'));
+      if (Array.isArray(hotel.Images)) imageUrls.push(...hotel.Images);
+      if (Array.isArray(hotel.HotelImages)) imageUrls.push(...hotel.HotelImages.map((img) => img.url || img.Url || img));
+
+      // ── Amenities/Facilities ─────────────────────────────────────────────────
+      const amenities = [];
+      if (Array.isArray(hotel.Amenities)) amenities.push(...hotel.Amenities);
+      if (Array.isArray(hotel.Facilities)) {
+        hotel.Facilities.forEach((f) => {
+          if (Array.isArray(f.FacilitiesNames)) amenities.push(...f.FacilitiesNames);
+        });
+      }
+
+      // ── Description ──────────────────────────────────────────────────────────
+      // SRDV HotelDescription is often blank in search results.
+      // Fall back to building a description from Facilities (e.g. "Facilities: Breakfast 366.18")
+      // which mirrors the format returned by the hotel-details endpoint.
+      let description = hotel.HotelDescription || hotel.HotelPromotion || hotel.HotelPolicy || '';
+      if (!description && Array.isArray(hotel.Facilities) && hotel.Facilities.length > 0) {
+        const facilityParts = [];
+        hotel.Facilities.forEach((f) => {
+          if (Array.isArray(f.FacilitiesNames)) {
+            f.FacilitiesNames.forEach((name) => {
+              const price = f.RoomPrice ? ` ${parseFloat(f.RoomPrice).toFixed(2)}` : '';
+              facilityParts.push(`${name}${price}`);
+            });
+          }
+        });
+        if (facilityParts.length > 0) description = `Facilities: ${facilityParts.join(', ')}`;
+      }
 
       return {
-        id: hotel.HotelCode,
-        name: hotel.HotelName,
-        rating: Number(hotel.Rating || hotel.HotelRating || 0),
-        address: hotel.Address || hotel.HotelAddress || '',
-        amenities: hotel.Amenities || [],
-        imageUrls: hotel.HotelPicture ? [hotel.HotelPicture] : (hotel.Images || []),
+        id: String(hotel.HotelCode || hotel.ResultIndex || ''),
+        resultIndex: hotel.ResultIndex || '',
+        srdvIndex: hotel.SrdvIndex || 1,
+        name: hotel.HotelName || '',
+        category: hotel.HotelCategory || '',
+        rating,
+        description,
+        address: hotel.HotelAddress || hotel.Address || '',
+        city: hotel.City || '',
+        state: hotel.State || '',
+        country: hotel.Country || '',
+        pinCode: hotel.PinCode || '',
+        latitude: hotel.Latitude || null,
+        longitude: hotel.Longitude || null,
+        contactNo: hotel.HotelContactNo || '',
+        mapLink: hotel.HotelMap || '',
+        amenities: [...new Set(amenities)],   // deduplicate
+        imageUrls,
         fromPrice: {
-          amountMinor: Math.round(minPrice * nights * 100), // convert to minor unit (paise)
+          // Supplier price per night in minor units — markup applied in use-case
+          amountMinor: supplierAmountMinor,
           currency,
         },
         priceDisclosure: {
@@ -158,10 +247,11 @@ module.exports = {
   },
 
   /**
-   * Normalizes SRDV HotelRoom response to Maqam room list DTO
+   * Normalizes SRDV HotelRoom response to Maqam room list DTO.
+   * `nights` = number of stay nights (used for totalPrice display only — markup is per-night).
    */
   mapHotelRoomResponse: (srdvResponse, nights) => {
-    const hotelRoomsDetails = (
+    const hotelRoomsDetails =
       srdvResponse.GetHotelRoomResult?.HotelRoomsDetails ||
       srdvResponse.GetHotelRoomResult?.hotelRoomsDetails ||
       srdvResponse.GetHotelRoomResult ||
@@ -170,14 +260,7 @@ module.exports = {
       srdvResponse.HotelRoomResult ||
       srdvResponse.HotelRoomsDetails ||
       srdvResponse.hotelRoomsDetails ||
-      srdvResponse.HotelRoomsDetails ||
-      []
-    );
-    // const hotelRoomsDetails =
-    //   srdvResponse.GetHotelRoomResult?.HotelRoomsDetails ||
-    //   srdvResponse.HotelRoomResult?.HotelRoomsDetails ||
-    //   srdvResponse.HotelRoomsDetails ||
-    //   [];
+      [];
 
     const rooms = (Array.isArray(hotelRoomsDetails) ? hotelRoomsDetails : [hotelRoomsDetails]).flatMap((category) => {
       const categoryName = category?.CategoryName || category?.RoomTypeName || category?.Category || 'Standard Room';
@@ -189,17 +272,43 @@ module.exports = {
             ? category.RoomList
             : [];
       return roomsArray.map((room) => {
-        const offeredPrice = parseFloat(room.Price?.OfferedPrice || room.OfferedPrice || 0);
+        // offeredPrice is the per-night supplier price in major units (e.g. 4184.34 INR)
+        const offeredPrice = parseFloat(
+          room.Price?.OfferedPrice ||
+          room.Price?.OfferedPriceRoundedOff ||
+          room.Price?.PublishedPrice ||
+          room.OfferedPrice ||
+          0,
+        );
+
+        // cancellationPolicy: return parsed array when possible, human-readable string otherwise
+        let cancellationPolicy;
+        if (Array.isArray(room.CancellationPolicies) && room.CancellationPolicies.length > 0) {
+          cancellationPolicy = room.CancellationPolicies.map((cp) => ({
+            fromDate: cp.FromDate || cp.fromDate || null,
+            toDate: cp.ToDate || cp.toDate || null,
+            charge: parseFloat(cp.Charge || cp.charge || 0),
+            chargeType: cp.ChargeType || cp.chargeType || 1,
+            currency: cp.Currency || cp.currency || room.Price?.CurrencyCode || 'INR',
+          }));
+        } else if (room.CancellationPolicy && typeof room.CancellationPolicy === 'string') {
+          cancellationPolicy = room.CancellationPolicy;
+        } else {
+          cancellationPolicy = 'Standard cancellation policy applies.';
+        }
+
         return {
           id: room.RoomIndex || room.RoomId || `${room.RatePlanCode || room.RatePlan || categoryName}`,
           name: room.RoomTypeName || room.RoomName || categoryName,
           board: room.MealType || room.Meal || 'No meals included',
           capacity: room.MaxOccupancy || room.AdultCount || 2,
-          price: offeredPrice, // Base price in major units
-          totalPrice: Math.round(offeredPrice * nights),
+          // price = per-night supplier price in major units (markup applied in use-case)
+          price: offeredPrice,
+          // totalPrice = per-night × nights (before markup — use-case recalculates with markup)
+          totalPrice: parseFloat((offeredPrice * nights).toFixed(2)),
           currency: room.Price?.CurrencyCode || 'INR',
           refundable: !!room.IsRefundable,
-          cancellationPolicy: room.CancellationPolicies ? JSON.stringify(room.CancellationPolicies) : 'Standard cancellation policy applies.',
+          cancellationPolicy,
           // Retain SRDV specific details needed for BlockRoom / Book
           srdvRoomDetails: room,
         };

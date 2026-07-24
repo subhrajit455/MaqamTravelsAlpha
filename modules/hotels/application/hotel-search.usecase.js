@@ -37,7 +37,7 @@ const searchHotels = async (criteria) => {
       ResultIndex: h.ResultIndex || h.resultIndex,
       SrdvIndex: h.SrdvIndex || h.srdvIndex || 1,
       HotelName: h.HotelName || h.hotelName || '',
-      Rating: Number(h.Rating || h.HotelRating || h.hotelRating || h.rating || 0),
+      Rating: Number(h.StarRating || h.Rating || h.HotelRating || h.hotelRating || h.rating || 0),
       Address: h.Address || h.HotelAddress || h.address || '',
       hotelCode: String(h.HotelCode || h.hotelCode || ''),
       resultIndex: h.ResultIndex || h.resultIndex,
@@ -55,19 +55,47 @@ const searchHotels = async (criteria) => {
   );
 
   // 4. Map to public DTO with selling prices
+  // h.fromPrice.amountMinor = per-night supplier price in minor units (from mapper fix)
+  // Markup is applied per-night, then multiplied by nights to get total stay price.
+  const nights = (() => {
+    const start = new Date(criteria.checkIn);
+    const end = new Date(criteria.checkOut);
+    return Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)));
+  })();
+
   const publicHotels = result.hotels.map((h) => {
-    // h.fromPrice is already in minor units
-    const pricing = calculateSellingPrice(h.fromPrice.amountMinor, h.fromPrice.currency);
+    // Supplier per-night price in minor units
+    const supplierPerNightMinor = h.fromPrice.amountMinor;
+
+    // Apply markup on per-night supplier price
+    const pricingPerNight = calculateSellingPrice(supplierPerNightMinor, h.fromPrice.currency);
+
+    // Final customer total for the entire stay
+    const customerTotalMinor = pricingPerNight.customerTotalMinor * nights;
+
+    // Convert to major units (rupees) for direct display — amountMinor / 100
+    const perNightPrice = parseFloat((pricingPerNight.customerTotalMinor / 100).toFixed(2));
+    const totalPrice    = parseFloat((customerTotalMinor / 100).toFixed(2));
+
     return {
       ...h,
       fromPrice: {
-        amountMinor: pricing.customerTotalMinor,
-        supplierAmountMinor: pricing.supplierAmountMinor,
-        markupMinor: pricing.markupMinor,
-        feeMinor: pricing.feeMinor,
-        customerTotalMinor: pricing.customerTotalMinor,
-        currency: pricing.currency,
-        pricingVersion: pricing.pricingVersion,
+        // ── Display fields (major units = rupees) ─────────────────────────────
+        perNightPrice,        // e.g. 4520.09   → show as "₹4,520/night" on hotel card
+        totalPrice,           // e.g. 9040.18   → show as "₹9,040 total" at checkout
+        nights,               // e.g. 2
+        currency: pricingPerNight.currency,
+
+        // ── Payment field (minor units = paise) ──────────────────────────────
+        // Use this when charging via payment gateway (Razorpay, Stripe, etc.)
+        amountMinor: customerTotalMinor, // e.g. 904018 paise = ₹9040.18
+
+        // ── Admin-only pricing breakdown ──────────────────────────────────────
+        supplierAmountMinor: pricingPerNight.supplierAmountMinor * nights,
+        markupMinor: pricingPerNight.markupMinor * nights,
+        feeMinor: pricingPerNight.feeMinor * nights,
+        customerTotalMinor,
+        pricingVersion: pricingPerNight.pricingVersion,
       },
     };
   });
@@ -76,6 +104,7 @@ const searchHotels = async (criteria) => {
   return {
     searchId,
     expiresInSeconds: SEARCH_CACHE_TTL_MS / 1000,
+    nights,
     hotels: publicHotels,
   };
 
@@ -126,16 +155,27 @@ const getHotelDetails = async ({ searchId, hotelId, correlationId }) => {
     correlationId,
   });
 
+  // Derive nights from the cached search criteria
+  const nights = Math.max(1, Math.round(
+    (new Date(session.criteria.checkOut) - new Date(session.criteria.checkIn)) / (1000 * 60 * 60 * 24)
+  ));
+
   // Calculate selling price for each selectable room option
   const publicRooms = details.rooms.map((room) => {
-    // room.price is in major units, convert to minor
-    const supplierMinor = Math.round(room.price * 100);
-    const pricing = calculateSellingPrice(supplierMinor, room.currency);
+    // room.price is the per-night supplier price in major units (e.g. 4184.34 INR)
+    const supplierPerNightMinor = Math.round(room.price * 100);
+    const pricing = calculateSellingPrice(supplierPerNightMinor, room.currency);
+
+    // Per-night selling price (with markup + fee) in major units
+    const perNightSellingPrice = parseFloat((pricing.customerTotalMinor / 100).toFixed(2));
+    // Total selling price for the full stay
+    const totalStaySellingPrice = parseFloat((perNightSellingPrice * nights).toFixed(2));
 
     return {
       ...room,
-      price: pricing.customerTotalMinor / 100, // public price in major unit
-      totalPrice: pricing.customerTotalMinor * (room.nights || 1) / 100,
+      price: perNightSellingPrice,              // per-night selling price in major units
+      totalPrice: totalStaySellingPrice,         // total stay selling price in major units
+      nights,                                    // number of nights (for frontend display)
       priceSnapshot: {
         supplierAmountMinor: pricing.supplierAmountMinor,
         markupMinor: pricing.markupMinor,
@@ -170,7 +210,8 @@ const getHotelDetails = async ({ searchId, hotelId, correlationId }) => {
 };
 
 /**
- * Revalidates price and cancellation policies (BlockRoom)
+ * Revalidates price and cancellation policies (BlockRoom).
+ * Total price is calculated from the original search dates (checkIn → checkOut).
  */
 const recheck = async ({ searchId, hotelId, selectedRooms, correlationId }) => {
   const session = await cache.get(`hotel:search:${searchId}`);
@@ -205,7 +246,10 @@ const recheck = async ({ searchId, hotelId, selectedRooms, correlationId }) => {
     };
   });
 
-  const provider = getHotelProvider();
+  // ── Nights from original search dates (checkIn → checkOut) ─────────────────
+  const nights = Math.max(1, Math.round(
+    (new Date(session.criteria.checkOut) - new Date(session.criteria.checkIn)) / (1000 * 60 * 60 * 24)
+  ));
 
   // Call SRDV BlockRoom
   const providerResult = await provider.blockRoom({
@@ -215,17 +259,26 @@ const recheck = async ({ searchId, hotelId, selectedRooms, correlationId }) => {
     correlationId,
   });
 
-  // Calculate pricing quote using minor units
-  const supplierTotalMinor = Math.round(providerResult.price.total * 100);
-  const pricing = calculateSellingPrice(supplierTotalMinor, providerResult.price.currency);
+  // BlockRoom gives us the confirmed per-night price from supplier.
+  // We apply markup per-night, then multiply by user-selected nights.
+  const supplierPerNightMajor = providerResult.price.total;  // total from BlockRoom (1 night)
+  const supplierPerNightMinor = Math.round(supplierPerNightMajor * 100);
+  const pricingPerNight = calculateSellingPrice(supplierPerNightMinor, providerResult.price.currency);
+
+  const perNightSellingPrice = parseFloat((pricingPerNight.customerTotalMinor / 100).toFixed(2));
+  const totalSellingPrice    = parseFloat((perNightSellingPrice * nights).toFixed(2));
 
   const sellingQuote = {
-    supplierAmountMinor: pricing.supplierAmountMinor,
-    markupMinor: pricing.markupMinor,
-    feeMinor: pricing.feeMinor,
-    customerTotalMinor: pricing.customerTotalMinor,
-    currency: pricing.currency,
-    pricingVersion: pricing.pricingVersion,
+    perNightPrice: perNightSellingPrice,
+    totalPrice: totalSellingPrice,
+    nights,
+    currency: pricingPerNight.currency,
+    // admin fields
+    supplierAmountMinor: pricingPerNight.supplierAmountMinor * nights,
+    markupMinor: pricingPerNight.markupMinor * nights,
+    feeMinor: pricingPerNight.feeMinor * nights,
+    customerTotalMinor: pricingPerNight.customerTotalMinor * nights,
+    pricingVersion: pricingPerNight.pricingVersion,
   };
 
   // Cache recheck result
@@ -234,8 +287,9 @@ const recheck = async ({ searchId, hotelId, selectedRooms, correlationId }) => {
     searchId,
     hotelId,
     searchSession: session,
-    providerResult, // contains mapped roomSnapshots + _raw details
+    providerResult,
     sellingQuote,
+    nights,
   };
   await cache.set(`hotel:recheck:${recheckId}`, recheckSession, RECHECK_CACHE_TTL_MS);
 
@@ -245,20 +299,19 @@ const recheck = async ({ searchId, hotelId, selectedRooms, correlationId }) => {
     priceChanged: providerResult.priceChanged,
     policyChanged: providerResult.policyChanged,
     hotel: providerResult.hotel,
-    roomSnapshots: providerResult.roomSnapshots.map((r) => {
-      // room price mapping for frontend display
-      const rPriceMinor = Math.round(r.totalPrice * 100);
-      const rPricing = calculateSellingPrice(rPriceMinor, r.currency);
-      return {
-        ...r,
-        price: rPricing.customerTotalMinor / 100 / (r.nights || 1),
-        totalPrice: rPricing.customerTotalMinor / 100,
-      };
-    }),
+    // Price summary — in rupees, ready for display
     price: {
-      currency: pricing.currency,
-      total: pricing.customerTotalMinor / 100, // public selling price
+      perNightPrice: perNightSellingPrice,  // e.g. 4520.09  → "₹4,520/night"
+      totalPrice: totalSellingPrice,        // e.g. 9040.18  → "₹9,040 for 2 nights"
+      nights,                               // nights selected by user
+      currency: pricingPerNight.currency,
     },
+    roomSnapshots: providerResult.roomSnapshots.map((r) => ({
+      ...r,
+      price: perNightSellingPrice,          // per-night selling price in ₹
+      totalPrice: totalSellingPrice,        // total for all nights in ₹
+      nights,
+    })),
     cancellationPolicy: providerResult.cancellationPolicy,
   };
 };

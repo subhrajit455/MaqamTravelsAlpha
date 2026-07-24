@@ -3,22 +3,27 @@ components:
     HotelSearchRequest:
       type: object
       required:
-        - cityId
-        - countryCode
         - checkIn
         - checkOut
-        - guestNationality
-        - rooms
+      description: >
+        **Minimal payload** — only `cityName` (or `cityId`) + `checkIn` + `checkOut` + `adults` are needed.
+        All other fields are optional and have smart server-side defaults:
+
+        - `countryCode` — auto-derived from the city map when `cityName` is used.
+        - `guestNationality` — defaults to `IN`.
+        - `currency` — defaults to `INR`.
+        - `rooms` — built automatically from `adults` / `children` / `numRooms` when omitted.
+
+        Use `GET /api/v1/hotels/cities?q=<name>` to find city names and their IDs.
       properties:
+        cityName:
+          type: string
+          example: "Mumbai"
+          description: "Human-readable city name. Use GET /api/v1/hotels/cities to search. countryCode is auto-derived."
         cityId:
           type: string
           example: "725862"
-          description: "SRDV city identifier."
-        countryCode:
-          type: string
-          minLength: 2
-          maxLength: 2
-          example: "IN"
+          description: "SRDV numeric city ID (alternative to cityName). At least one of cityName or cityId is required."
         checkIn:
           type: string
           format: date
@@ -27,23 +32,69 @@ components:
           type: string
           format: date
           example: "2026-08-03"
+        adults:
+          type: integer
+          minimum: 1
+          maximum: 32
+          example: 2
+          description: "Total number of adults. If omitted alongside rooms[], defaults to 1."
+        children:
+          type: integer
+          minimum: 0
+          maximum: 24
+          example: 0
+          description: "Number of children (optional, default 0)."
+        childAges:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 17
+          example: []
+          description: "Age of each child. Must have one entry per child."
+        numRooms:
+          type: integer
+          minimum: 1
+          maximum: 8
+          example: 1
+          description: "Number of rooms to book (optional, default 1). All rooms get the same adults/children split."
+        countryCode:
+          type: string
+          minLength: 2
+          maxLength: 2
+          example: "IN"
+          description: "ISO country code (optional — auto-derived from city map when cityName is used)."
         guestNationality:
           type: string
           minLength: 2
           maxLength: 2
           example: "IN"
+          description: "Guest nationality code (optional, defaults to IN)."
         currency:
           type: string
           minLength: 3
           maxLength: 3
           example: "INR"
+          description: "Preferred currency (optional, defaults to INR)."
+        minRating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 3
+          description: "Minimum star rating filter (optional)."
+        maxRating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+          description: "Maximum star rating filter (optional)."
         rooms:
           type: array
           minItems: 1
+          maxItems: 8
+          description: "Full room occupancy array (optional — use adults/numRooms shorthand instead for simplicity)."
           items:
             type: object
-            required:
-              - adults
             properties:
               adults:
                 type: integer
@@ -62,16 +113,6 @@ components:
                   minimum: 0
                   maximum: 17
                 example: []
-        minRating:
-          type: integer
-          minimum: 1
-          maximum: 5
-          example: 3
-        maxRating:
-          type: integer
-          minimum: 1
-          maximum: 5
-          example: 5
 
     HotelSearchResponse:
       type: object
@@ -429,3 +470,20 @@ components:
         penalty:
           type: number
           example: 3955.14
+
+    HotelCitySuggestion:
+      type: object
+      description: "A city suggestion returned by the city autocomplete endpoint."
+      properties:
+        cityName:
+          type: string
+          example: "Mumbai"
+          description: "Human-readable canonical city name."
+        cityId:
+          type: string
+          example: "13044"
+          description: "SRDV numeric city identifier. Pass this as cityId in the hotel search request."
+        countryCode:
+          type: string
+          example: "IN"
+          description: "ISO 3166-1 alpha-2 country code."
