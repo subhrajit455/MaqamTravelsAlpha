@@ -4,6 +4,53 @@ const hotelCancelUseCase = require('./application/hotel-cancel.usecase');
 const hotelBookingService = require('./hotel-booking.service');
 const { tryAuthenticate } = require('../../middleware/auth');
 const { sendSuccess, sendCreated } = require('../../utils/apiResponse');
+const { searchCities, getAllCities } = require('../../utils/hotelCityMap');
+
+/**
+ * normalizeSearchPayload
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Converts the simplified user-facing payload into the full internal criteria
+ * expected by the hotel search use-case and SRDV mapper.
+ *
+ * Auto-derives:
+ *   countryCode     ← from city map when cityName is supplied
+ *   guestNationality← defaults to 'IN' (or derived countryCode)
+ *   currency        ← defaults to 'INR'
+ *   rooms[]         ← built from top-level adults / children / childAges / numRooms
+ *                     (when the caller does not pass a full rooms[] array)
+ */
+const normalizeSearchPayload = (body) => {
+  // ── 1. Resolve countryCode ───────────────────────────────────────────────
+  let countryCode = (body.countryCode || '').trim().toUpperCase();
+  if (!countryCode && body.cityName) {
+    const match = searchCities(body.cityName, 1);
+    if (match.length > 0) countryCode = match[0].countryCode;
+  }
+  countryCode = countryCode || 'IN';
+
+  // ── 2. Guest nationality & currency defaults ─────────────────────────────
+  const guestNationality = (body.guestNationality || 'IN').trim().toUpperCase();
+  const currency = (body.currency || 'INR').trim().toUpperCase();
+
+  // ── 3. Build rooms array from shorthand fields ────────────────────────────
+  let rooms = body.rooms;
+  if (!Array.isArray(rooms) || rooms.length === 0) {
+    const numRooms = Math.max(1, parseInt(body.numRooms || 1, 10));
+    const adults   = Math.max(1, parseInt(body.adults   || 1, 10));
+    const children = Math.max(0, parseInt(body.children || 0, 10));
+    const childAges = Array.isArray(body.childAges) ? body.childAges : [];
+    rooms = Array.from({ length: numRooms }, () => ({ adults, children, childAges }));
+  }
+
+  // Return merged payload — original fields preserved, derived ones added/overridden
+  return {
+    ...body,
+    countryCode,
+    guestNationality,
+    currency,
+    rooms,
+  };
+};
 
 const isDeveloperView = (user) => {
   return user && ['admin', 'super_admin'].includes(user.role);
@@ -16,8 +63,12 @@ const filterSearchResult = (result, developerView) => {
     hotels: result.hotels.map((hotel) => ({
       ...hotel,
       fromPrice: {
-        amountMinor: hotel.fromPrice?.amountMinor,
-        currency: hotel.fromPrice?.currency,
+        // ── Show this on the hotel search card ────────────────────────────────
+        perNightPrice: hotel.fromPrice?.perNightPrice,  // e.g. 4520.09  → "₹4,520 / night"
+        // ── Show this on the checkout / booking summary page ─────────────────
+        totalPrice:    hotel.fromPrice?.totalPrice,     // e.g. 9040.18  → "₹9,040 for 2 nights"
+        nights:        hotel.fromPrice?.nights,         // e.g. 2
+        currency:      hotel.fromPrice?.currency,       // "INR"
       },
     })),
   };
@@ -38,10 +89,12 @@ const filterRecheckResult = (result, developerView) => {
     ...result,
     hotel: {
       ...result.hotel,
-      fromPrice: {
-        amountMinor: result.hotel.fromPrice?.amountMinor,
-        currency: result.hotel.fromPrice?.currency,
-      },
+      fromPrice: result.hotel.fromPrice ? {
+        totalPrice:    result.hotel.fromPrice?.totalPrice,
+        perNightPrice: result.hotel.fromPrice?.perNightPrice,
+        nights:        result.hotel.fromPrice?.nights,
+        currency:      result.hotel.fromPrice?.currency,
+      } : undefined,
     },
     roomSnapshots: result.roomSnapshots.map(({ priceSnapshot, srdvRoomDetails, ...room }) => room),
   };
@@ -51,7 +104,9 @@ const searchHotels = async (req, res) => {
   const correlationId = req.correlationId || req.headers['x-correlation-id'] || '';
   const user = await tryAuthenticate(req);
   const developerView = isDeveloperView(user);
-  const result = await hotelSearchUseCase.searchHotels({ ...req.body, correlationId });
+  // Normalize simplified payload → full internal criteria before forwarding
+  const criteria = normalizeSearchPayload(req.body);
+  const result = await hotelSearchUseCase.searchHotels({ ...criteria, correlationId });
   const filtered = filterSearchResult(result, developerView);
   return sendSuccess(res, { message: 'Hotels found', data: filtered });
 };
@@ -130,4 +185,13 @@ const cancelBooking = async (req, res) => {
   return sendSuccess(res, { message: 'Hotel cancellation processed', data: result });
 };
 
-module.exports = { searchHotels, getHotelDetails, recheck, createBooking, getMyBookings, getBooking, cancelBooking, debugSearchSession };
+const searchHotelCities = (req, res) => {
+  const query = (req.query.q || '').trim();
+  if (!query || query.length < 2) {
+    return sendSuccess(res, { message: 'City suggestions', data: getAllCities() });
+  }
+  const suggestions = searchCities(query, 15);
+  return sendSuccess(res, { message: 'City suggestions', data: suggestions });
+};
+
+module.exports = { searchHotels, searchHotelCities, getHotelDetails, recheck, createBooking, getMyBookings, getBooking, cancelBooking, debugSearchSession };

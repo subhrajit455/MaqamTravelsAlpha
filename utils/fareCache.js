@@ -68,7 +68,6 @@ class FareCache {
             return null;
         }
     }
-
     /**
      * Get full entry (fare + flight info)
      * @param {string} key
